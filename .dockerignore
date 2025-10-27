@@ -1,0 +1,18 @@
+# Exclude VCS and editor files
+.git
+.gitignore
+.vscode
+.idea
+
+# Go build outputs
+bin/
+build/
+dist/
+coverage.out
+
+# Node modules (if any demos)
+node_modules/
+
+# Local env
+.env
+.env.*

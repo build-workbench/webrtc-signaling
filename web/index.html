@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Signaling Demo</title>
+  <link rel="stylesheet" href="/demo/style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>WebRTC 信令演示</h1>
+    <div class="controls">
+      <input id="room" placeholder="房间ID，例如 room-001" />
+      <input id="name" placeholder="显示名，例如 Alice" />
+      <button id="start">加入房间</button>
+      <button id="leave" disabled>离开</button>
+    </div>
+    <div class="status" id="status">未连接</div>
+
+    <div class="videos">
+      <div>
+        <h3>本地视频</h3>
+        <video id="local" autoplay playsinline muted></video>
+      </div>
+      <div>
+        <h3>远端视频</h3>
+        <div id="remotes"></div>
+      </div>
+    </div>
+
+    <div class="chat">
+      <input id="chatText" placeholder="发送聊天室消息（可选）" />
+      <button id="sendChat">发送</button>
+      <pre id="chatLog"></pre>
+    </div>
+  </div>
+
+  <script src="/demo/app.js"></script>
+</body>
+</html>

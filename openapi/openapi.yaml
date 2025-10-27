@@ -1,0 +1,107 @@
+openapi: 3.1.0
+info:
+  title: Signaling Server API
+  version: 1.0.0
+servers:
+  - url: /api/v1
+paths:
+  /rooms:
+    post:
+      summary: Create room
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id: { type: string }
+                maxParticipants: { type: integer }
+                metadata: { type: object }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+  /rooms/{id}:
+    get:
+      summary: Get room
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  participants: { type: integer }
+        '404': { description: Not Found }
+  /rooms/{id}/join-token:
+    post:
+      summary: Issue join token
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId: { type: string }
+                displayName: { type: string }
+                role: { type: string }
+                ttlSeconds: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  expiresIn: { type: integer }
+  /ice-servers:
+    get:
+      summary: List ICE servers
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    urls:
+                      type: array
+                      items: { type: string }
+                    username: { type: string }
+                    credential: { type: string }
+                    ttl: { type: integer }
+  /healthz:
+    get:
+      summary: Liveness probe
+      responses:
+        '200': { description: OK }
+  /readyz:
+    get:
+      summary: Readiness probe
+      responses:
+        '200': { description: OK }

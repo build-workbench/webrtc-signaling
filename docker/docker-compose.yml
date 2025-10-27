@@ -1,0 +1,34 @@
+version: "3.9"
+services:
+  server:
+    build: ..
+    image: lessup/signaling:dev
+    environment:
+      - SIGNAL_ADDR=:8080
+      - SIGNAL_JWT_SECRET=dev-secret-change
+      - SIGNAL_ALLOWED_ORIGINS=
+      - SIGNAL_PROM_ENABLED=true
+      - SIGNAL_REDIS_ENABLED=true
+      - SIGNAL_REDIS_ADDR=redis:6379
+      - SIGNAL_STUN=stun:stun.l.google.com:19302
+      - SIGNAL_TURN_URLS=turn:coturn:3478
+      - SIGNAL_TURN_USERNAME=turnuser
+      - SIGNAL_TURN_CREDENTIAL=turnpass
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redis
+      - coturn
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+  coturn:
+    image: instrumentisto/coturn:latest
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    network_mode: bridge
+    ports:
+      - "3478:3478/tcp"
+      - "3478:3478/udp"
+      - "49152-49200:49152-49200/udp"
