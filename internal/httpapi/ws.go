@@ -223,6 +223,10 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 
 end:
+	// send graceful close frame
+	_ = ws.WriteControl(websocket.CloseMessage,
+		websocket.FormatCloseMessage(websocket.CloseNormalClosure, "bye"),
+		time.Now().Add(3*time.Second))
 	// cleanup
 	close(done)
 	if _, ok := s.rooms.Leave(roomID, peerID); ok {

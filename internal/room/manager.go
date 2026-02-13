@@ -27,6 +27,7 @@ type Participant struct {
 type Room struct {
 	ID              string
 	MaxParticipants int
+	CreatedAt       time.Time
 	Participants    map[string]*Participant
 }
 
@@ -34,10 +35,45 @@ type Manager struct {
 	mu    sync.RWMutex
 	rooms map[string]*Room
 	log   *zap.Logger
+	stopCh chan struct{}
 }
 
 func NewManager(log *zap.Logger) *Manager {
-	return &Manager{rooms: make(map[string]*Room), log: log}
+	return &Manager{rooms: make(map[string]*Room), log: log, stopCh: make(chan struct{})}
+}
+
+// StartCleanup runs a background goroutine that removes empty rooms
+// older than the given TTL. Call Stop() to terminate.
+func (m *Manager) StartCleanup(interval, emptyTTL time.Duration) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				m.cleanupEmptyRooms(emptyTTL)
+			case <-m.stopCh:
+				return
+			}
+		}
+	}()
+}
+
+func (m *Manager) Stop() {
+	close(m.stopCh)
+}
+
+func (m *Manager) cleanupEmptyRooms(ttl time.Duration) {
+	now := time.Now()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for id, r := range m.rooms {
+		if len(r.Participants) == 0 && now.Sub(r.CreatedAt) > ttl {
+			delete(m.rooms, id)
+			m.log.Debug("cleaned up empty room", zap.String("roomID", id))
+		}
+	}
+	observability.RoomsGauge.Set(float64(len(m.rooms)))
 }
 
 func (m *Manager) CreateRoom(id string) (*Room, error) {
@@ -49,7 +85,7 @@ func (m *Manager) CreateRoom(id string) (*Room, error) {
 	if _, ok := m.rooms[id]; ok {
 		return m.rooms[id], nil
 	}
-	r := &Room{ID: id, Participants: map[string]*Participant{}}
+	r := &Room{ID: id, CreatedAt: time.Now(), Participants: map[string]*Participant{}}
 	m.rooms[id] = r
 	observability.RoomsGauge.Set(float64(len(m.rooms)))
 	return r, nil
@@ -73,7 +109,7 @@ func (m *Manager) Join(roomID string, p *Participant) ([]*Participant, error) {
 		if roomID == "" {
 			roomID = uuid.NewString()
 		}
-		r = &Room{ID: roomID, Participants: map[string]*Participant{}}
+		r = &Room{ID: roomID, CreatedAt: time.Now(), Participants: map[string]*Participant{}}
 		m.rooms[roomID] = r
 		observability.RoomsGauge.Set(float64(len(m.rooms)))
 	}

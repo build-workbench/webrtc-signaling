@@ -31,6 +31,7 @@ func main() {
 	)
 
 	mgr := room.NewManager(log)
+	mgr.StartCleanup(30*time.Second, 5*time.Minute)
 	jwtAuth := auth.NewJWT(cfg.Security.JWTSecret)
 
 	httpSrv := httpapi.NewServer(cfg, log, mgr, jwtAuth)
@@ -50,6 +51,7 @@ func main() {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	mgr.Stop()
 	if err := httpSrv.Shutdown(shutdownCtx); err != nil {
 		log.Error("graceful shutdown failed", zap.Error(err))
 	}

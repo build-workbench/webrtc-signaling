@@ -48,6 +48,7 @@ func NewServer(cfg *config.Config, log *zap.Logger, rooms *room.Manager, authJWT
 	mux.Use(s.requestIDMiddleware)
 	mux.Use(s.corsMiddleware)
 	mux.Use(securityHeadersMiddleware)
+	mux.Use(s.accessLogMiddleware)
 
 	mux.Get("/healthz", s.handleHealth)
 	mux.Get("/readyz", s.handleReady)
@@ -275,6 +276,36 @@ func securityHeadersMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		next.ServeHTTP(w, r)
+	})
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (sr *statusRecorder) WriteHeader(code int) {
+	sr.status = code
+	sr.ResponseWriter.WriteHeader(code)
+}
+
+func (s *Server) accessLogMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// skip noisy endpoints
+		if r.URL.Path == "/healthz" || r.URL.Path == "/readyz" || r.URL.Path == "/metrics" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		start := time.Now()
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(rec, r)
+		s.log.Info("http request",
+			zap.String("method", r.Method),
+			zap.String("path", r.URL.Path),
+			zap.Int("status", rec.status),
+			zap.Duration("duration", time.Since(start)),
+			zap.String("reqID", requestID(r)),
+		)
 	})
 }
 

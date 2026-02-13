@@ -3,10 +3,17 @@ body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-se
 h1{margin:0 0 16px 0}
 .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 .controls input{padding:8px 10px;border-radius:8px;border:1px solid #2d3848;background:#0f1730;color:#e6edf3;min-width:220px}
-.controls button{padding:8px 12px;border-radius:8px;border:1px solid #2d3848;background:#1b2a4a;color:#e6edf3;cursor:pointer}
+.controls button{padding:8px 12px;border-radius:8px;border:1px solid #2d3848;background:#1b2a4a;color:#e6edf3;cursor:pointer;transition:background .15s}
+.controls button:hover:not(:disabled){background:#253a6a}
 .controls button:disabled{opacity:.5;cursor:not-allowed}
-.status{padding:8px 12px;background:#15203a;border:1px solid #2d3848;border-radius:8px;margin-bottom:16px}
+.status{padding:8px 12px;border-radius:8px;margin-bottom:16px;border-left:4px solid #2d3848;background:#15203a;transition:all .2s}
+.status-info{border-left-color:#3b82f6;background:#15203a}
+.status-ok{border-left-color:#22c55e;background:#0f2a1a}
+.status-warn{border-left-color:#eab308;background:#2a2510}
+.status-error{border-left-color:#ef4444;background:#2a1010}
 .videos{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
 video{width:100%;background:#000;border-radius:8px;border:1px solid #2d3848}
 .chat{display:grid;grid-template-columns:1fr auto;gap:8px}
-#chatLog{grid-column:1/3;background:#0f1730;color:#e6edf3;border:1px solid #2d3848;border-radius:8px;padding:8px;min-height:120px;max-height:220px;overflow:auto}
+.chat input{padding:8px 10px;border-radius:8px;border:1px solid #2d3848;background:#0f1730;color:#e6edf3}
+.chat button{padding:8px 12px;border-radius:8px;border:1px solid #2d3848;background:#1b2a4a;color:#e6edf3;cursor:pointer}
+#chatLog{grid-column:1/3;background:#0f1730;color:#e6edf3;border:1px solid #2d3848;border-radius:8px;padding:8px;min-height:120px;max-height:220px;overflow:auto;font-size:13px;line-height:1.5}
