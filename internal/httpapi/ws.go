@@ -11,10 +11,10 @@ import (
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
-	redispubsub "singal/internal/store/redis"
-	"singal/internal/observability"
-	"singal/internal/room"
-	"singal/internal/signaling"
+	redispubsub "signal/internal/store/redis"
+	"signal/internal/observability"
+	"signal/internal/room"
+	"signal/internal/signaling"
 )
 
 type safeWS struct {
@@ -32,6 +32,23 @@ func (s *safeWS) WriteControl(messageType int, data []byte, deadline time.Time) 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.Conn.WriteControl(messageType, data, deadline)
+}
+
+// routeMessage sends a message to a specific peer or broadcasts to the room,
+// with Redis fallback for multi-node deployments.
+func (s *Server) routeMessage(roomID, peerID string, msg signaling.Envelope) {
+	msg.RoomID = roomID
+	msg.From = peerID
+	if msg.To != "" {
+		if err := s.rooms.SendTo(roomID, msg.To, msg); err != nil && s.bus != nil {
+			_ = s.bus.PublishDirect(roomID, msg.To, msg)
+		}
+	} else {
+		s.rooms.Broadcast(roomID, peerID, msg)
+		if s.bus != nil {
+			_ = s.bus.PublishBroadcast(roomID, peerID, msg)
+		}
+	}
 }
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
@@ -95,10 +112,12 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	// read first message must be join
 	var env signaling.Envelope
 	if err := conn.ReadJSON(&env); err != nil {
+		close(done)
 		return
 	}
 	if env.Type != signaling.TypeJoin {
 		_ = ws.WriteJSON(signaling.Envelope{Type: signaling.TypeError, Payload: mustJSON(signaling.ErrorPayload{Code: 2001, Message: "first message must be join"})})
+		close(done)
 		return
 	}
 	var jp signaling.JoinPayload
@@ -106,10 +125,12 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	roomID := jp.RoomID
 	if roomID == "" {
 		_ = ws.WriteJSON(signaling.Envelope{Type: signaling.TypeError, Payload: mustJSON(signaling.ErrorPayload{Code: 2001, Message: "roomId required"})})
+		close(done)
 		return
 	}
 	if claims.Rid != "" && claims.Rid != roomID {
 		_ = ws.WriteJSON(signaling.Envelope{Type: signaling.TypeError, Payload: mustJSON(signaling.ErrorPayload{Code: 2003, Message: "forbidden room"})})
+		close(done)
 		return
 	}
 	if jp.DisplayName != "" {
@@ -123,8 +144,11 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	peers, err := s.rooms.Join(roomID, p)
 	if err != nil {
 		_ = ws.WriteJSON(signaling.Envelope{Type: signaling.TypeError, Payload: mustJSON(signaling.ErrorPayload{Code: 2010, Message: err.Error()})})
+		close(done)
 		return
 	}
+
+	s.log.Info("peer joined", zap.String("peerID", peerID), zap.String("roomID", roomID), zap.String("userID", userID))
 
 	// Subscribe Redis room channel if enabled
 	if s.bus != nil {
@@ -150,13 +174,10 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	for _, pp := range peers {
 		peersInfo = append(peersInfo, map[string]any{"id": pp.ID, "role": pp.Role, "displayName": pp.DisplayName})
 	}
-	iceResp := []map[string]any{}
-	for _, u := range s.cfg.Turn.STUN { iceResp = append(iceResp, map[string]any{"urls": []string{u}}) }
-	for _, t := range s.cfg.Turn.TURN { iceResp = append(iceResp, map[string]any{"urls": t.URLs, "username": t.Username, "credential": t.Credential, "ttl": t.TTL}) }
 	_ = ws.WriteJSON(signaling.Envelope{Type: signaling.TypeJoined, RoomID: roomID, From: peerID, Payload: mustJSON(map[string]any{
-		"self": map[string]any{"id": peerID, "role": role, "displayName": displayName},
-		"peers": peersInfo,
-		"iceServers": iceResp,
+		"self":       map[string]any{"id": peerID, "role": role, "displayName": displayName},
+		"peers":      peersInfo,
+		"iceServers": s.buildICEServers(),
 	})})
 
 	// notify others
@@ -182,35 +203,10 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			msg.RoomID = roomID
 			msg.From = peerID
 			if err := s.rooms.SendTo(roomID, msg.To, msg); err != nil && s.bus != nil {
-				// forward to other nodes
 				_ = s.bus.PublishDirect(roomID, msg.To, msg)
 			}
-		case signaling.TypeChat:
-			msg.RoomID = roomID
-			msg.From = peerID
-			if msg.To != "" {
-				if err := s.rooms.SendTo(roomID, msg.To, msg); err != nil && s.bus != nil {
-					_ = s.bus.PublishDirect(roomID, msg.To, msg)
-				}
-			} else {
-				s.rooms.Broadcast(roomID, peerID, msg)
-				if s.bus != nil {
-					_ = s.bus.PublishBroadcast(roomID, peerID, msg)
-				}
-			}
-		case signaling.TypeMute, signaling.TypeUnmute:
-			msg.RoomID = roomID
-			msg.From = peerID
-			if msg.To != "" {
-				if err := s.rooms.SendTo(roomID, msg.To, msg); err != nil && s.bus != nil {
-					_ = s.bus.PublishDirect(roomID, msg.To, msg)
-				}
-			} else {
-				s.rooms.Broadcast(roomID, peerID, msg)
-				if s.bus != nil {
-					_ = s.bus.PublishBroadcast(roomID, peerID, msg)
-				}
-			}
+		case signaling.TypeChat, signaling.TypeMute, signaling.TypeUnmute:
+			s.routeMessage(roomID, peerID, msg)
 		case signaling.TypeLeave:
 			goto end
 		default:
@@ -223,6 +219,7 @@ end:
 	close(done)
 	if _, ok := s.rooms.Leave(roomID, peerID); ok {
 		s.rooms.Broadcast(roomID, peerID, signaling.Envelope{Type: signaling.TypePeerLeave, RoomID: roomID, From: peerID, Payload: mustJSON(map[string]any{"id": peerID})})
+		s.log.Info("peer left", zap.String("peerID", peerID), zap.String("roomID", roomID))
 	}
 	if s.bus != nil {
 		s.mu.Lock()

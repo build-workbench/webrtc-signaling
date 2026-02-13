@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
-	"singal/internal/observability"
+	"signal/internal/observability"
 )
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {

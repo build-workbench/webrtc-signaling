@@ -2,9 +2,11 @@ package httpapi
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"net/http"
 	"path"
+	"runtime/debug"
 	"sync"
 	"strings"
 	"time"
@@ -14,10 +16,10 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
-	"singal/internal/auth"
-	"singal/internal/config"
-	"singal/internal/room"
-	redispubsub "singal/internal/store/redis"
+	"signal/internal/auth"
+	"signal/internal/config"
+	"signal/internal/room"
+	redispubsub "signal/internal/store/redis"
 )
 
 type Server struct {
@@ -41,6 +43,10 @@ func NewServer(cfg *config.Config, log *zap.Logger, rooms *room.Manager, authJWT
 		CheckOrigin:     s.checkOrigin,
 	}
 	mux := chi.NewRouter()
+	mux.Use(s.recoveryMiddleware)
+	mux.Use(s.requestIDMiddleware)
+	mux.Use(s.corsMiddleware)
+
 	mux.Get("/healthz", s.handleHealth)
 	mux.Get("/readyz", s.handleReady)
 	mux.Get("/metrics", promhttp.Handler().ServeHTTP)
@@ -113,8 +119,8 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	s.handleHealth(w, r)
 }
 
-func (s *Server) handleICEServers(w http.ResponseWriter, r *http.Request) {
-	resp := []map[string]any{}
+func (s *Server) buildICEServers() []map[string]any {
+	resp := make([]map[string]any, 0, len(s.cfg.Turn.STUN)+len(s.cfg.Turn.TURN))
 	for _, u := range s.cfg.Turn.STUN {
 		resp = append(resp, map[string]any{"urls": []string{u}})
 	}
@@ -126,22 +132,32 @@ func (s *Server) handleICEServers(w http.ResponseWriter, r *http.Request) {
 			"ttl":        t.TTL,
 		})
 	}
-	writeJSON(w, http.StatusOK, resp)
+	return resp
+}
+
+func (s *Server) handleICEServers(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, s.buildICEServers())
 }
 
 func (s *Server) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		ID string `json:"id"`
-		MaxParticipants int `json:"maxParticipants"`
-		Metadata map[string]any `json:"metadata"`
+		ID              string         `json:"id"`
+		MaxParticipants int            `json:"maxParticipants"`
+		Metadata        map[string]any `json:"metadata"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err.Error() != "EOF" {
+		writeError(w, http.StatusBadRequest, 2001, "invalid_body", err.Error())
+		return
+	}
 	rm, err := s.rooms.CreateRoom(req.ID)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, 2001, err.Error(), nil)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"id": rm.ID})
+	if req.MaxParticipants > 0 {
+		rm.MaxParticipants = req.MaxParticipants
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"id": rm.ID, "maxParticipants": rm.MaxParticipants})
 }
 
 func (s *Server) handleGetRoom(w http.ResponseWriter, r *http.Request) {
@@ -158,9 +174,10 @@ func (s *Server) handleGetRoom(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleJoinToken(w http.ResponseWriter, r *http.Request) {
-	// simple admin key check
+	// constant-time admin key check to prevent timing attacks
 	if s.cfg.Security.AdminKey != "" {
-		if r.Header.Get("X-Admin-Key") != s.cfg.Security.AdminKey {
+		provided := r.Header.Get("X-Admin-Key")
+		if subtle.ConstantTimeCompare([]byte(provided), []byte(s.cfg.Security.AdminKey)) != 1 {
 			writeError(w, http.StatusUnauthorized, 2002, "unauthorized", nil)
 			return
 		}
@@ -189,4 +206,62 @@ func (s *Server) handleJoinToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"token": tok, "expiresIn": req.TTLSeconds})
+}
+
+// --- Middleware ---
+
+type ctxKey string
+
+const reqIDKey ctxKey = "reqID"
+
+func (s *Server) recoveryMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rv := recover(); rv != nil {
+				s.log.Error("panic recovered",
+					zap.Any("error", rv),
+					zap.String("stack", string(debug.Stack())),
+					zap.String("path", r.URL.Path),
+				)
+				writeError(w, http.StatusInternalServerError, 3000, "internal_error", nil)
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) requestIDMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.Header.Get("X-Request-ID")
+		if id == "" {
+			id = uuid.NewString()
+		}
+		w.Header().Set("X-Request-ID", id)
+		ctx := context.WithValue(r.Context(), reqIDKey, id)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func (s *Server) corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if origin != "" && s.checkOrigin(r) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Admin-Key, X-Request-ID")
+			w.Header().Set("Access-Control-Max-Age", "86400")
+		}
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func requestID(r *http.Request) string {
+	if id, ok := r.Context().Value(reqIDKey).(string); ok {
+		return id
+	}
+	return ""
 }

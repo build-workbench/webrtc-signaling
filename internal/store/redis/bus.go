@@ -9,7 +9,7 @@ import (
 
 	redis "github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
-	"singal/internal/signaling"
+	"signal/internal/signaling"
 )
 
 type MessageKind string
@@ -33,18 +33,20 @@ type Bus struct {
 	log      *zap.Logger
 	nodeID   string
 	ctx      context.Context
+	cancel   context.CancelFunc
 	mu       sync.Mutex
 	subs     map[string]*redis.PubSub
 }
 
 func New(addr, password string, db int, nodeID string, log *zap.Logger) (*Bus, error) {
 	cli := redis.NewClient(&redis.Options{Addr: addr, Password: password, DB: db})
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := cli.Ping(ctx).Err(); err != nil {
+	pingCtx, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer pingCancel()
+	if err := cli.Ping(pingCtx).Err(); err != nil {
 		return nil, err
 	}
-	return &Bus{client: cli, nodeID: nodeID, log: log, ctx: context.Background(), subs: map[string]*redis.PubSub{}}, nil
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Bus{client: cli, nodeID: nodeID, log: log, ctx: ctx, cancel: cancel, subs: map[string]*redis.PubSub{}}, nil
 }
 
 func (b *Bus) channel(roomID string) string { return fmt.Sprintf("chan:room:%s", roomID) }
@@ -101,10 +103,13 @@ func (b *Bus) UnsubscribeRoom(roomID string) error {
 }
 
 func (b *Bus) Close() error {
+	b.cancel()
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	for roomID, ps := range b.subs {
 		_ = ps.Unsubscribe(b.ctx, b.channel(roomID))
+		_ = ps.Close()
 	}
+	b.subs = map[string]*redis.PubSub{}
 	return b.client.Close()
 }

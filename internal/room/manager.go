@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
-	"singal/internal/observability"
-	"singal/internal/signaling"
+	"signal/internal/observability"
+	"signal/internal/signaling"
 )
 
 type SafeConn interface {
@@ -25,8 +25,9 @@ type Participant struct {
 }
 
 type Room struct {
-	ID           string
-	Participants map[string]*Participant
+	ID              string
+	MaxParticipants int
+	Participants    map[string]*Participant
 }
 
 type Manager struct {
@@ -65,9 +66,20 @@ func (m *Manager) Join(roomID string, p *Participant) ([]*Participant, error) {
 	if p == nil || p.Conn == nil {
 		return nil, errors.New("invalid participant")
 	}
-	r, _ := m.CreateRoom(roomID)
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	r, ok := m.rooms[roomID]
+	if !ok {
+		if roomID == "" {
+			roomID = uuid.NewString()
+		}
+		r = &Room{ID: roomID, Participants: map[string]*Participant{}}
+		m.rooms[roomID] = r
+		observability.RoomsGauge.Set(float64(len(m.rooms)))
+	}
+	if r.MaxParticipants > 0 && len(r.Participants) >= r.MaxParticipants {
+		return nil, errors.New("room is full")
+	}
 	// snapshot peers before adding
 	peers := make([]*Participant, 0, len(r.Participants))
 	for _, v := range r.Participants {

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -52,6 +53,7 @@ type TurnCfg struct {
 }
 
 type Config struct {
+	LogLevel      string           `json:"logLevel"`
 	Server        ServerCfg        `json:"server"`
 	Security      SecurityCfg      `json:"security"`
 	Redis         RedisCfg         `json:"redis"`
@@ -61,6 +63,7 @@ type Config struct {
 
 func Load() *Config {
 	cfg := &Config{
+		LogLevel: getEnv("SIGNAL_LOG_LEVEL", "info"),
 		Server: ServerCfg{
 			Addr:            getEnv("SIGNAL_ADDR", ":8080"),
 			AllowedOrigins:  split(getEnv("SIGNAL_ALLOWED_ORIGINS", "")),
@@ -104,6 +107,22 @@ func Load() *Config {
 		})
 	}
 	return cfg
+}
+
+func (c *Config) Validate() error {
+	if strings.TrimSpace(c.Security.JWTSecret) == "" || c.Security.JWTSecret == "dev-secret-change" {
+		fmt.Println("WARNING: using default JWT secret — set SIGNAL_JWT_SECRET for production")
+	}
+	if len(c.Security.JWTSecret) < 16 {
+		fmt.Println("WARNING: JWT secret is shorter than 16 characters, consider using a stronger secret")
+	}
+	if c.Server.PongWaitSec <= c.Server.PingIntervalSec {
+		return fmt.Errorf("pong wait (%ds) must be greater than ping interval (%ds)", c.Server.PongWaitSec, c.Server.PingIntervalSec)
+	}
+	if c.Server.MaxMsgBytes <= 0 {
+		return fmt.Errorf("max message bytes must be positive, got %d", c.Server.MaxMsgBytes)
+	}
+	return nil
 }
 
 func split(s string) []string {

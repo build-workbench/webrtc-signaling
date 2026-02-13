@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
 
-FROM golang:1.21-alpine AS builder
+FROM golang:1.23-alpine AS builder
 RUN apk add --no-cache ca-certificates && update-ca-certificates
 WORKDIR /src
-COPY go.mod .
+COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
 ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
