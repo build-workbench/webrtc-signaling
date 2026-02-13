@@ -39,6 +39,10 @@ func (s *safeWS) WriteControl(messageType int, data []byte, deadline time.Time) 
 func (s *Server) routeMessage(roomID, peerID string, msg signaling.Envelope) {
 	msg.RoomID = roomID
 	msg.From = peerID
+	msg.Ts = time.Now().UnixMilli()
+	if msg.ID == "" {
+		msg.ID = uuid.NewString()
+	}
 	if msg.To != "" {
 		if err := s.rooms.SendTo(roomID, msg.To, msg); err != nil && s.bus != nil {
 			_ = s.bus.PublishDirect(roomID, msg.To, msg)
@@ -202,6 +206,10 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			}
 			msg.RoomID = roomID
 			msg.From = peerID
+			msg.Ts = time.Now().UnixMilli()
+			if msg.ID == "" {
+				msg.ID = uuid.NewString()
+			}
 			if err := s.rooms.SendTo(roomID, msg.To, msg); err != nil && s.bus != nil {
 				_ = s.bus.PublishDirect(roomID, msg.To, msg)
 			}

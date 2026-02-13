@@ -14,6 +14,7 @@ import (
 	"signal/internal/httpapi"
 	"signal/internal/logger"
 	"signal/internal/room"
+	"signal/internal/version"
 )
 
 func main() {
@@ -23,6 +24,11 @@ func main() {
 	}
 	log := logger.New(cfg.LogLevel)
 	defer func() { _ = log.Sync() }()
+	log.Info("starting signal server",
+		zap.String("version", version.Version),
+		zap.String("commit", version.Commit),
+		zap.String("buildTime", version.BuildTime),
+	)
 
 	mgr := room.NewManager(log)
 	jwtAuth := auth.NewJWT(cfg.Security.JWTSecret)

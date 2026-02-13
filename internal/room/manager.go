@@ -124,16 +124,20 @@ func (m *Manager) ListPeers(roomID string) []*Participant {
 
 func (m *Manager) SendTo(roomID, toPeerID string, env signaling.Envelope) error {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
 	r, ok := m.rooms[roomID]
 	if !ok {
+		m.mu.RUnlock()
 		return errors.New("room not found")
 	}
 	p, ok := r.Participants[toPeerID]
 	if !ok {
+		m.mu.RUnlock()
 		return errors.New("peer not found")
 	}
-	if err := p.Conn.WriteJSON(env); err != nil {
+	conn := p.Conn
+	m.mu.RUnlock()
+
+	if err := conn.WriteJSON(env); err != nil {
 		return err
 	}
 	observability.MessagesOutTotal.Inc()
@@ -142,16 +146,23 @@ func (m *Manager) SendTo(roomID, toPeerID string, env signaling.Envelope) error 
 
 func (m *Manager) Broadcast(roomID, excludePeerID string, env signaling.Envelope) {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
 	r, ok := m.rooms[roomID]
 	if !ok {
+		m.mu.RUnlock()
 		return
 	}
+	// snapshot connections to release lock before network I/O
+	targets := make([]SafeConn, 0, len(r.Participants))
 	for id, p := range r.Participants {
 		if id == excludePeerID {
 			continue
 		}
-		if err := p.Conn.WriteJSON(env); err == nil {
+		targets = append(targets, p.Conn)
+	}
+	m.mu.RUnlock()
+
+	for _, conn := range targets {
+		if err := conn.WriteJSON(env); err == nil {
 			observability.MessagesOutTotal.Inc()
 		}
 	}

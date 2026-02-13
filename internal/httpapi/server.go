@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"io"
 	"net/http"
 	"path"
 	"runtime/debug"
@@ -46,6 +47,7 @@ func NewServer(cfg *config.Config, log *zap.Logger, rooms *room.Manager, authJWT
 	mux.Use(s.recoveryMiddleware)
 	mux.Use(s.requestIDMiddleware)
 	mux.Use(s.corsMiddleware)
+	mux.Use(securityHeadersMiddleware)
 
 	mux.Get("/healthz", s.handleHealth)
 	mux.Get("/readyz", s.handleReady)
@@ -116,7 +118,15 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
-	s.handleHealth(w, r)
+	if s.bus != nil {
+		if err := s.bus.Ping(); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte("redis unreachable"))
+			return
+		}
+	}
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("ok"))
 }
 
 func (s *Server) buildICEServers() []map[string]any {
@@ -145,7 +155,7 @@ func (s *Server) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
 		MaxParticipants int            `json:"maxParticipants"`
 		Metadata        map[string]any `json:"metadata"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err.Error() != "EOF" {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
 		writeError(w, http.StatusBadRequest, 2001, "invalid_body", err.Error())
 		return
 	}
@@ -255,6 +265,15 @@ func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func securityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		next.ServeHTTP(w, r)
 	})
 }

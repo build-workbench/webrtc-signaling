@@ -49,6 +49,12 @@ func New(addr, password string, db int, nodeID string, log *zap.Logger) (*Bus, e
 	return &Bus{client: cli, nodeID: nodeID, log: log, ctx: ctx, cancel: cancel, subs: map[string]*redis.PubSub{}}, nil
 }
 
+func (b *Bus) Ping() error {
+	ctx, cancel := context.WithTimeout(b.ctx, 3*time.Second)
+	defer cancel()
+	return b.client.Ping(ctx).Err()
+}
+
 func (b *Bus) channel(roomID string) string { return fmt.Sprintf("chan:room:%s", roomID) }
 
 func (b *Bus) PublishBroadcast(roomID, excludePeer string, env signaling.Envelope) error {
