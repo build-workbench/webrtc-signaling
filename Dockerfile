@@ -24,19 +24,19 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -o /out/signal-server ./cmd/server
 
 # ── Runtime stage ───────────────────────────────────────
-FROM alpine:3.20 AS runtime
-RUN apk add --no-cache ca-certificates tzdata \
-    && addgroup -S appgroup && adduser -S appuser -G appgroup
+FROM gcr.io/distroless/static-debian12:nonroot AS runtime
+ARG VERSION=dev
 LABEL org.opencontainers.image.title="aurora-signal" \
       org.opencontainers.image.description="WebRTC signaling server" \
       org.opencontainers.image.source="https://github.com/LessUp/aurora-signal" \
-      org.opencontainers.image.version="${VERSION}"
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.licenses="MIT"
 WORKDIR /app
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=builder /out/signal-server /app/signal-server
 COPY web /app/web
 ENV SIGNAL_ADDR=:8080
 EXPOSE 8080 9090
-HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget -qO- http://localhost:8080/healthz || exit 1
-USER appuser:appgroup
+USER nonroot:nonroot
 ENTRYPOINT ["/app/signal-server"]

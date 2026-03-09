@@ -48,13 +48,15 @@ make run
 ## Make 命令
 
 ```bash
-make build          # 编译（含版本注入）
+make build          # 编译（含版本注入、-trimpath）
 make run            # 运行服务
 make test           # 单元测试
 make test-race      # 竞态检测
 make test-cover     # 覆盖率报告
 make vet            # go vet
 make lint           # golangci-lint
+make fmt            # go fmt
+make clean          # 清理构建产物
 make docker-build   # 构建 Docker 镜像
 make compose-up     # 启动本地编排（Signal + Redis + coturn）
 make compose-down   # 停止本地编排

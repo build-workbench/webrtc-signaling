@@ -11,6 +11,7 @@ bin/
 dist/
 build/
 coverage.out
+coverage.html
 vendor/
 
 # Env

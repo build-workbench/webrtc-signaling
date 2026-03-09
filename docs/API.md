@@ -110,7 +110,7 @@ description: "REST 端点与 WebSocket 信令协议完整说明"
 | `userId` | 是 | 业务用户标识 |
 | `displayName` | 否 | 显示名 |
 | `role` | 否 | `viewer` / `speaker` / `moderator` |
-| `ttlSeconds` | 否 | Token 有效期（秒），默认 300 |
+| `ttlSeconds` | 否 | Token 有效期（秒），默认 900 |
 
 **200 OK**：
 

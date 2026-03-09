@@ -9,7 +9,7 @@ LDFLAGS := -s -w \
 	-X github.com/LessUp/aurora-signal/internal/version.Commit=$(COMMIT) \
 	-X github.com/LessUp/aurora-signal/internal/version.BuildTime=$(BUILD_TIME)
 
-.PHONY: all deps build run test test-race test-cover vet lint docker-build docker-push compose-up compose-down compose-logs
+.PHONY: all deps build run test test-race test-cover vet lint fmt clean docker-build docker-push compose-up compose-down compose-logs
 
 all: build
 
@@ -18,7 +18,7 @@ deps:
 
 build:
 	mkdir -p bin
-	$(GO) build -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/server
+	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/server
 
 run:
 	SIGNAL_JWT_SECRET=$${SIGNAL_JWT_SECRET:-dev-secret-change} $(GO) run ./cmd/server
@@ -38,6 +38,12 @@ vet:
 
 lint:
 	golangci-lint run || echo "Install golangci-lint for linting"
+
+fmt:
+	$(GO) fmt $(PKG)
+
+clean:
+	rm -rf bin/ coverage.out coverage.html
 
 docker-build:
 	docker build \

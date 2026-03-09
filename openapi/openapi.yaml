@@ -1,13 +1,22 @@
 openapi: 3.1.0
 info:
-  title: Signaling Server API
-  version: 1.0.0
+  title: Aurora Signal API
+  version: 0.2.0
+  description: WebRTC signaling server — room management, SDP/ICE negotiation, and basic media controls.
+  license:
+    name: MIT
+    url: https://github.com/LessUp/aurora-signal/blob/main/LICENSE
 servers:
   - url: /api/v1
+    description: Versioned API endpoints
+  - url: /
+    description: Health, metrics, and WebSocket endpoints
 paths:
   /rooms:
     post:
       summary: Create room
+      operationId: createRoom
+      tags: [rooms]
       requestBody:
         required: false
         content:
@@ -15,9 +24,9 @@ paths:
             schema:
               type: object
               properties:
-                id: { type: string }
-                maxParticipants: { type: integer }
-                metadata: { type: object }
+                id: { type: string, description: Room ID (auto-generated UUID if omitted) }
+                maxParticipants: { type: integer, minimum: 1, description: Max participants cap }
+                metadata: { type: object, description: Arbitrary metadata }
       responses:
         '201':
           description: Created
@@ -27,9 +36,13 @@ paths:
                 type: object
                 properties:
                   id: { type: string }
+                  maxParticipants: { type: integer }
+        '400': { $ref: '#/components/responses/BadRequest' }
   /rooms/{id}:
     get:
       summary: Get room
+      operationId: getRoom
+      tags: [rooms]
       parameters:
         - in: path
           name: id
@@ -45,15 +58,22 @@ paths:
                 properties:
                   id: { type: string }
                   participants: { type: integer }
-        '404': { description: Not Found }
+        '404': { $ref: '#/components/responses/NotFound' }
   /rooms/{id}/join-token:
     post:
       summary: Issue join token
+      operationId: issueJoinToken
+      tags: [rooms]
       parameters:
         - in: path
           name: id
           required: true
           schema: { type: string }
+        - in: header
+          name: X-Admin-Key
+          required: false
+          schema: { type: string }
+          description: Admin API key (constant-time comparison)
       requestBody:
         required: true
         content:
@@ -64,8 +84,11 @@ paths:
               properties:
                 userId: { type: string }
                 displayName: { type: string }
-                role: { type: string }
-                ttlSeconds: { type: integer }
+                role:
+                  type: string
+                  enum: [viewer, speaker, moderator]
+                  default: speaker
+                ttlSeconds: { type: integer, default: 900 }
       responses:
         '200':
           description: OK
@@ -76,9 +99,13 @@ paths:
                 properties:
                   token: { type: string }
                   expiresIn: { type: integer }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /ice-servers:
     get:
       summary: List ICE servers
+      operationId: listICEServers
+      tags: [infrastructure]
       responses:
         '200':
           description: OK
@@ -98,10 +125,57 @@ paths:
   /healthz:
     get:
       summary: Liveness probe
+      operationId: healthz
+      tags: [infrastructure]
+      servers:
+        - url: /
       responses:
         '200': { description: OK }
   /readyz:
     get:
       summary: Readiness probe
+      operationId: readyz
+      tags: [infrastructure]
+      servers:
+        - url: /
       responses:
         '200': { description: OK }
+        '503': { description: Redis unreachable }
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      operationId: metrics
+      tags: [infrastructure]
+      servers:
+        - url: /
+      responses:
+        '200': { description: Prometheus text format }
+components:
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      properties:
+        type: { type: string, const: error }
+        payload:
+          type: object
+          properties:
+            code: { type: integer }
+            message: { type: string }
+            details: {}
+          required: [code, message]

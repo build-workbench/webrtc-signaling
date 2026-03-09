@@ -306,7 +306,7 @@ turn:
 
 | 方式 | 说明 |
 |:--|:--|
-| **Docker** | `Dockerfile`，Distroless 运行时（`gcr.io/distroless/base-debian12`） |
+| **Docker** | `Dockerfile`，Distroless 运行时（`gcr.io/distroless/static-debian12`） |
 | **Docker Compose** | `signal + redis + coturn`，一键本地启动 |
 | **Kubernetes（生产）** | Deployment + HPA + ConfigMap/Secret + Service + Ingress |
 

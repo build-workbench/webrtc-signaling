@@ -83,7 +83,7 @@ func Load() *Config {
 		},
 		Redis: RedisCfg{
 			Enabled:  getEnvBool("SIGNAL_REDIS_ENABLED", false),
-			Addr:     getEnv("SIGNAL_REDIS_ADDR", "redis:6379"),
+			Addr:     getEnv("SIGNAL_REDIS_ADDR", "localhost:6379"),
 			DB:       getEnvInt("SIGNAL_REDIS_DB", 0),
 			Password: getEnv("SIGNAL_REDIS_PASSWORD", ""),
 		},

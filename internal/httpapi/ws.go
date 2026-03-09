@@ -99,7 +99,7 @@ func (sess *wsSession) startPing(interval time.Duration) {
 // JWT claims, and adds the participant to the room. Returns the list of
 // existing peers, or an error string if the join failed (error already sent to
 // the client in that case).
-func (sess *wsSession) joinRoom(claims *signaling.JoinPayload, tokenRoomID string) ([]*room.Participant, bool) {
+func (sess *wsSession) joinRoom(tokenRoomID string) ([]*room.Participant, bool) {
 	var env signaling.Envelope
 	if err := sess.conn.ReadJSON(&env); err != nil {
 		return nil, false
@@ -365,7 +365,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	sess.startPing(pingInterval)
 
 	// --- join ---
-	peers, ok := sess.joinRoom(nil, claims.Rid)
+	peers, ok := sess.joinRoom(claims.Rid)
 	if !ok {
 		return
 	}
