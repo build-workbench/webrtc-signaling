@@ -10,7 +10,7 @@
 [![Docs](https://img.shields.io/badge/Docs-GitHub%20Pages-blue?logo=github)](https://lessup.github.io/aurora-signal/)
 [![Go Report Card](https://goreportcard.com/badge/github.com/LessUp/aurora-signal)](https://goreportcard.com/report/github.com/LessUp/aurora-signal)
 
-[简体中文](README.zh-CN.md) | English
+English | [简体中文](README.zh-CN.md)
 
 </div>
 
