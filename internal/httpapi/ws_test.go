@@ -45,9 +45,12 @@ func testServer(t *testing.T) (*Server, *httptest.Server) {
 func wsConnect(t *testing.T, ts *httptest.Server, token string) *websocket.Conn {
 	t.Helper()
 	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/ws/v1?token=" + token
-	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatalf("ws dial: %v", err)
+	}
+	if resp != nil && resp.Body != nil {
+		resp.Body.Close()
 	}
 	return conn
 }
@@ -264,6 +267,9 @@ func TestWSErrorCases(t *testing.T) {
 	t.Run("missing_token", func(t *testing.T) {
 		wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/ws/v1"
 		_, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+		if resp != nil && resp.Body != nil {
+			defer resp.Body.Close()
+		}
 		if err == nil {
 			t.Fatal("expected error")
 		}
@@ -563,7 +569,7 @@ func TestConcurrentJoinLeave(t *testing.T) {
 			defer conn.Close()
 			_ = conn.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-conc"})})
 			// read joined or error
-			conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+			_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 			var env signaling.Envelope
 			_ = conn.ReadJSON(&env)
 			// leave
