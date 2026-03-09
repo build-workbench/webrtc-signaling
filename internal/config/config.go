@@ -109,20 +109,23 @@ func Load() *Config {
 	return cfg
 }
 
-func (c *Config) Validate() error {
+// Validate checks for invalid configuration and returns warnings alongside any
+// hard error. Warnings are returned as a slice of human-readable strings so
+// the caller can log them with the appropriate logger.
+func (c *Config) Validate() (warnings []string, err error) {
 	if strings.TrimSpace(c.Security.JWTSecret) == "" || c.Security.JWTSecret == "dev-secret-change" {
-		fmt.Println("WARNING: using default JWT secret — set SIGNAL_JWT_SECRET for production")
+		warnings = append(warnings, "using default JWT secret — set SIGNAL_JWT_SECRET for production")
 	}
 	if len(c.Security.JWTSecret) < 16 {
-		fmt.Println("WARNING: JWT secret is shorter than 16 characters, consider using a stronger secret")
+		warnings = append(warnings, "JWT secret is shorter than 16 characters, consider using a stronger secret")
 	}
 	if c.Server.PongWaitSec <= c.Server.PingIntervalSec {
-		return fmt.Errorf("pong wait (%ds) must be greater than ping interval (%ds)", c.Server.PongWaitSec, c.Server.PingIntervalSec)
+		return warnings, fmt.Errorf("pong wait (%ds) must be greater than ping interval (%ds)", c.Server.PongWaitSec, c.Server.PingIntervalSec)
 	}
 	if c.Server.MaxMsgBytes <= 0 {
-		return fmt.Errorf("max message bytes must be positive, got %d", c.Server.MaxMsgBytes)
+		return warnings, fmt.Errorf("max message bytes must be positive, got %d", c.Server.MaxMsgBytes)
 	}
-	return nil
+	return warnings, nil
 }
 
 func split(s string) []string {

@@ -35,7 +35,8 @@ func TestLoadFromEnv(t *testing.T) {
 
 func TestValidateOK(t *testing.T) {
 	cfg := Load()
-	if err := cfg.Validate(); err != nil {
+	_, err := cfg.Validate()
+	if err != nil {
 		t.Fatalf("unexpected validation error: %v", err)
 	}
 }
@@ -44,7 +45,8 @@ func TestValidatePongLessThanPing(t *testing.T) {
 	cfg := Load()
 	cfg.Server.PongWaitSec = 5
 	cfg.Server.PingIntervalSec = 10
-	if err := cfg.Validate(); err == nil {
+	_, err := cfg.Validate()
+	if err == nil {
 		t.Fatal("expected validation error when pong <= ping")
 	}
 }
@@ -52,7 +54,8 @@ func TestValidatePongLessThanPing(t *testing.T) {
 func TestValidateMaxMsgBytesZero(t *testing.T) {
 	cfg := Load()
 	cfg.Server.MaxMsgBytes = 0
-	if err := cfg.Validate(); err == nil {
+	_, err := cfg.Validate()
+	if err == nil {
 		t.Fatal("expected validation error when maxMsgBytes <= 0")
 	}
 }

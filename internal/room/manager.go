@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
-	"signal/internal/observability"
-	"signal/internal/signaling"
+	"github.com/LessUp/aurora-signal/internal/observability"
+	"github.com/LessUp/aurora-signal/internal/signaling"
 )
 
 type SafeConn interface {
@@ -76,19 +76,28 @@ func (m *Manager) cleanupEmptyRooms(ttl time.Duration) {
 	observability.RoomsGauge.Set(float64(len(m.rooms)))
 }
 
-func (m *Manager) CreateRoom(id string) (*Room, error) {
+func (m *Manager) CreateRoom(id string, maxParticipants ...int) (*Room, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if id == "" {
 		id = uuid.NewString()
 	}
-	if _, ok := m.rooms[id]; ok {
-		return m.rooms[id], nil
+	if existing, ok := m.rooms[id]; ok {
+		return existing, nil
 	}
 	r := &Room{ID: id, CreatedAt: time.Now(), Participants: map[string]*Participant{}}
+	if len(maxParticipants) > 0 && maxParticipants[0] > 0 {
+		r.MaxParticipants = maxParticipants[0]
+	}
 	m.rooms[id] = r
 	observability.RoomsGauge.Set(float64(len(m.rooms)))
 	return r, nil
+}
+
+// ParticipantCount returns the number of participants in the room.
+// Safe to call concurrently as a snapshot.
+func (r *Room) ParticipantCount() int {
+	return len(r.Participants)
 }
 
 func (m *Manager) GetRoom(id string) (*Room, bool) {
@@ -122,6 +131,7 @@ func (m *Manager) Join(roomID string, p *Participant) ([]*Participant, error) {
 		peers = append(peers, v)
 	}
 	r.Participants[p.ID] = p
+	observability.ParticipantsGauge.Inc()
 	return peers, nil
 }
 
@@ -137,6 +147,7 @@ func (m *Manager) Leave(roomID, peerID string) (*Participant, bool) {
 		return nil, false
 	}
 	delete(r.Participants, peerID)
+	observability.ParticipantsGauge.Dec()
 	if len(r.Participants) == 0 {
 		delete(m.rooms, roomID)
 		observability.RoomsGauge.Set(float64(len(m.rooms)))

@@ -40,7 +40,7 @@ func (j *JWT) SignJoinToken(userID, roomID, role string, ttl time.Duration, disp
 }
 
 func (j *JWT) ParseJoinToken(tok string) (*JoinClaims, error) {
-	parsed, err := jwt.ParseWithClaims(tok, &JoinClaims{}, func(t *jwt.Token) (interface{}, error) {
+	parsed, err := jwt.ParseWithClaims(tok, &JoinClaims{}, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("unexpected signing method")
 		}

@@ -15,9 +15,9 @@ ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     go build -ldflags "-s -w \
-      -X signal/internal/version.Version=${VERSION} \
-      -X signal/internal/version.Commit=${COMMIT} \
-      -X signal/internal/version.BuildTime=${BUILD_TIME}" \
+      -X github.com/LessUp/aurora-signal/internal/version.Version=${VERSION} \
+      -X github.com/LessUp/aurora-signal/internal/version.Commit=${COMMIT} \
+      -X github.com/LessUp/aurora-signal/internal/version.BuildTime=${BUILD_TIME}" \
     -o /out/signal-server ./cmd/server
 
 # Distroless runtime

@@ -10,10 +10,10 @@ import (
 
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
-	"signal/internal/auth"
-	"signal/internal/config"
-	"signal/internal/room"
-	"signal/internal/signaling"
+	"github.com/LessUp/aurora-signal/internal/auth"
+	"github.com/LessUp/aurora-signal/internal/config"
+	"github.com/LessUp/aurora-signal/internal/room"
+	"github.com/LessUp/aurora-signal/internal/signaling"
 )
 
 func testServer(t *testing.T) (*Server, *httptest.Server) {
@@ -54,8 +54,18 @@ func wsConnect(t *testing.T, ts *httptest.Server, token string) *websocket.Conn 
 
 func getToken(t *testing.T, ts *httptest.Server, roomID, userID, name string) string {
 	t.Helper()
-	body := `{"userId":"` + userID + `","displayName":"` + name + `","role":"speaker","ttlSeconds":60}`
-	resp, err := http.Post(ts.URL+"/api/v1/rooms/"+roomID+"/join-token", "application/json", strings.NewReader(body))
+	return getTokenWithRole(t, ts, roomID, userID, name, "speaker", nil)
+}
+
+func getTokenWithRole(t *testing.T, ts *httptest.Server, roomID, userID, name, role string, headers map[string]string) string {
+	t.Helper()
+	body := `{"userId":"` + userID + `","displayName":"` + name + `","role":"` + role + `","ttlSeconds":60}`
+	req, _ := http.NewRequest("POST", ts.URL+"/api/v1/rooms/"+roomID+"/join-token", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("get token: %v", err)
 	}
@@ -66,6 +76,33 @@ func getToken(t *testing.T, ts *httptest.Server, roomID, userID, name string) st
 	var result map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&result)
 	return result["token"].(string)
+}
+
+func testServerWithAdmin(t *testing.T, adminKey string) (*Server, *httptest.Server) {
+	t.Helper()
+	cfg := &config.Config{
+		LogLevel: "error",
+		Server: config.ServerCfg{
+			Addr:            ":0",
+			MaxMsgBytes:     65536,
+			PingIntervalSec: 30,
+			PongWaitSec:     60,
+		},
+		Security: config.SecurityCfg{
+			JWTSecret: "test-secret-for-integration",
+			AdminKey:  adminKey,
+			RateLimit: config.RateLimitCfg{WSPerConnRPS: 100, WSBurst: 200},
+		},
+		Turn: config.TurnCfg{
+			STUN: []string{"stun:stun.l.google.com:19302"},
+		},
+	}
+	log, _ := zap.NewDevelopment()
+	mgr := room.NewManager(log)
+	jwtAuth := auth.NewJWT(cfg.Security.JWTSecret)
+	srv := NewServer(cfg, log, mgr, jwtAuth)
+	ts := httptest.NewServer(srv.httpSrv.Handler)
+	return srv, ts
 }
 
 func readEnvelope(t *testing.T, conn *websocket.Conn) signaling.Envelope {
@@ -354,4 +391,221 @@ func TestRESTEndpoints(t *testing.T) {
 		t.Fatal("missing X-Request-ID header")
 	}
 	resp.Body.Close()
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4: new tests
+// ---------------------------------------------------------------------------
+
+func TestAdminKeyAuth(t *testing.T) {
+	_, ts := testServerWithAdmin(t, "my-secret-admin-key")
+	defer ts.Close()
+
+	t.Run("missing_admin_key_rejected", func(t *testing.T) {
+		body := `{"userId":"u1","displayName":"A","role":"speaker","ttlSeconds":60}`
+		resp, err := http.Post(ts.URL+"/api/v1/rooms/r1/join-token", "application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("expected 401, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("wrong_admin_key_rejected", func(t *testing.T) {
+		body := `{"userId":"u1","displayName":"A","role":"speaker","ttlSeconds":60}`
+		req, _ := http.NewRequest("POST", ts.URL+"/api/v1/rooms/r1/join-token", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Admin-Key", "wrong-key")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("expected 401, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("correct_admin_key_accepted", func(t *testing.T) {
+		tok := getTokenWithRole(t, ts, "r1", "u1", "A", "speaker", map[string]string{"X-Admin-Key": "my-secret-admin-key"})
+		if tok == "" {
+			t.Fatal("expected non-empty token")
+		}
+	})
+}
+
+func TestRoomFull(t *testing.T) {
+	_, ts := testServer(t)
+	defer ts.Close()
+
+	// create room with max 1 participant
+	resp, err := http.Post(ts.URL+"/api/v1/rooms", "application/json", strings.NewReader(`{"id":"room-full","maxParticipants":1}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 201 {
+		t.Fatalf("create room: %d", resp.StatusCode)
+	}
+
+	// first peer joins successfully
+	tokA := getToken(t, ts, "room-full", "u1", "Alice")
+	connA := wsConnect(t, ts, tokA)
+	defer connA.Close()
+	_ = connA.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-full"})})
+	envA := readEnvelope(t, connA)
+	if envA.Type != signaling.TypeJoined {
+		t.Fatalf("A: expected joined, got %s", envA.Type)
+	}
+
+	// second peer should be rejected (room full)
+	tokB := getToken(t, ts, "room-full", "u2", "Bob")
+	connB := wsConnect(t, ts, tokB)
+	defer connB.Close()
+	_ = connB.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-full"})})
+	envB := readEnvelope(t, connB)
+	if envB.Type != signaling.TypeError {
+		t.Fatalf("B: expected error, got %s", envB.Type)
+	}
+	var errPayload signaling.ErrorPayload
+	_ = json.Unmarshal(envB.Payload, &errPayload)
+	if errPayload.Code != 2010 {
+		t.Fatalf("expected error code 2010, got %d", errPayload.Code)
+	}
+}
+
+func TestViewerCannotSignal(t *testing.T) {
+	_, ts := testServer(t)
+	defer ts.Close()
+
+	tok := getTokenWithRole(t, ts, "room-viewer", "u1", "Viewer", "viewer", nil)
+	conn := wsConnect(t, ts, tok)
+	defer conn.Close()
+	_ = conn.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-viewer"})})
+	readEnvelope(t, conn) // joined
+
+	// viewer tries to send an offer — should be rejected
+	_ = conn.WriteJSON(signaling.Envelope{Type: signaling.TypeOffer, To: "someone", Payload: mustJSON(map[string]any{"sdp": "v=0"})})
+	env := readEnvelope(t, conn)
+	if env.Type != signaling.TypeError {
+		t.Fatalf("expected error, got %s", env.Type)
+	}
+	var errPayload signaling.ErrorPayload
+	_ = json.Unmarshal(env.Payload, &errPayload)
+	if errPayload.Code != 2003 {
+		t.Fatalf("expected error code 2003, got %d", errPayload.Code)
+	}
+}
+
+func TestModeratorCanMuteOthers(t *testing.T) {
+	_, ts := testServer(t)
+	defer ts.Close()
+
+	// Moderator joins
+	tokMod := getTokenWithRole(t, ts, "room-mod", "u1", "Mod", "moderator", nil)
+	connMod := wsConnect(t, ts, tokMod)
+	defer connMod.Close()
+	_ = connMod.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-mod"})})
+	envMod := readEnvelope(t, connMod)
+	if envMod.Type != signaling.TypeJoined {
+		t.Fatalf("Mod: expected joined, got %s", envMod.Type)
+	}
+
+	// Speaker joins
+	tokSpk := getTokenWithRole(t, ts, "room-mod", "u2", "Speaker", "speaker", nil)
+	connSpk := wsConnect(t, ts, tokSpk)
+	defer connSpk.Close()
+	_ = connSpk.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-mod"})})
+	envSpk := readEnvelope(t, connSpk)
+	if envSpk.Type != signaling.TypeJoined {
+		t.Fatalf("Spk: expected joined, got %s", envSpk.Type)
+	}
+	readEnvelope(t, connMod) // participant-joined
+
+	spkPeerID := envSpk.From
+
+	// Moderator mutes speaker — should succeed (routed to speaker)
+	_ = connMod.WriteJSON(signaling.Envelope{Type: signaling.TypeMute, To: spkPeerID, Payload: mustJSON(map[string]any{"track": "audio"})})
+	envMute := readEnvelope(t, connSpk)
+	if envMute.Type != signaling.TypeMute {
+		t.Fatalf("Spk: expected mute, got %s", envMute.Type)
+	}
+
+	modPeerID := envMod.From
+
+	// Speaker tries to mute moderator — should be rejected
+	_ = connSpk.WriteJSON(signaling.Envelope{Type: signaling.TypeMute, To: modPeerID, Payload: mustJSON(map[string]any{"track": "audio"})})
+	envErr := readEnvelope(t, connSpk)
+	if envErr.Type != signaling.TypeError {
+		t.Fatalf("Spk: expected error, got %s", envErr.Type)
+	}
+	var errPayload signaling.ErrorPayload
+	_ = json.Unmarshal(envErr.Payload, &errPayload)
+	if errPayload.Code != 2003 {
+		t.Fatalf("expected error code 2003, got %d", errPayload.Code)
+	}
+}
+
+func TestConcurrentJoinLeave(t *testing.T) {
+	_, ts := testServer(t)
+	defer ts.Close()
+
+	const n = 10
+	done := make(chan struct{}, n)
+	for i := 0; i < n; i++ {
+		go func(idx int) {
+			defer func() { done <- struct{}{} }()
+			uid := "u" + strings.Repeat("x", idx)
+			tok := getToken(t, ts, "room-conc", uid, "P")
+			conn := wsConnect(t, ts, tok)
+			defer conn.Close()
+			_ = conn.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-conc"})})
+			// read joined or error
+			conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+			var env signaling.Envelope
+			_ = conn.ReadJSON(&env)
+			// leave
+			_ = conn.WriteJSON(signaling.Envelope{Type: signaling.TypeLeave})
+		}(i)
+	}
+	for i := 0; i < n; i++ {
+		<-done
+	}
+}
+
+func TestEnvelopeVersionPopulated(t *testing.T) {
+	_, ts := testServer(t)
+	defer ts.Close()
+
+	tokA := getToken(t, ts, "room-ver", "u1", "Alice")
+	tokB := getToken(t, ts, "room-ver", "u2", "Bob")
+
+	connA := wsConnect(t, ts, tokA)
+	defer connA.Close()
+	_ = connA.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-ver"})})
+	readEnvelope(t, connA) // joined
+
+	connB := wsConnect(t, ts, tokB)
+	defer connB.Close()
+	_ = connB.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-ver"})})
+	envB := readEnvelope(t, connB) // joined
+	readEnvelope(t, connA)         // participant-joined
+
+	bobPeerID := envB.From
+
+	// Alice sends chat
+	_ = connA.WriteJSON(signaling.Envelope{Type: signaling.TypeChat, Payload: mustJSON(map[string]any{"text": "hi"})})
+	envChat := readEnvelope(t, connB)
+	if envChat.Version != "v1" {
+		t.Fatalf("expected version v1, got %q", envChat.Version)
+	}
+
+	// Alice sends offer to Bob
+	_ = connA.WriteJSON(signaling.Envelope{Type: signaling.TypeOffer, To: bobPeerID, Payload: mustJSON(map[string]any{"sdp": "v=0"})})
+	envOffer := readEnvelope(t, connB)
+	if envOffer.Version != "v1" {
+		t.Fatalf("expected version v1, got %q", envOffer.Version)
+	}
 }

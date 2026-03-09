@@ -19,6 +19,12 @@ var (
 		Help:      "Current number of active rooms.",
 	})
 
+	ParticipantsGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: metricsNamespace,
+		Name:      "participants",
+		Help:      "Current number of participants across all rooms.",
+	})
+
 	MessagesInTotal = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: metricsNamespace,
 		Name:      "messages_in_total",
@@ -46,5 +52,5 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(WSConnections, RoomsGauge, MessagesInTotal, MessagesOutTotal, ErrorsTotal, MessageLatency)
+	prometheus.MustRegister(WSConnections, RoomsGauge, ParticipantsGauge, MessagesInTotal, MessagesOutTotal, ErrorsTotal, MessageLatency)
 }

@@ -5,10 +5,11 @@
 ## 特性
 
 - **房间管理** — REST API 创建/查询房间，支持 `maxParticipants` 人数上限，空房间自动清理
-- **WebSocket 信令** — offer/answer/trickle/chat/mute/leave，消息自动填充 `id` + `ts` 便于追踪
+- **WebSocket 信令** — offer/answer/trickle/chat/mute/leave，消息自动填充 `id` + `ts` + `version` 便于追踪
+- **角色权限** — viewer / speaker / moderator 三级角色：viewer 不可发起媒体协商，仅 moderator 可远程静音他人
 - **安全** — JWT Token 认证、Admin Key 常量时间比较、速率限制、安全响应头
-- **可观测性** — Prometheus 指标（`signal_` namespace）、结构化 JSON 日志、请求日志中间件、Request-ID 链路追踪
-- **高可用** — Redis Pub/Sub 多节点扩展、graceful shutdown、panic recovery 中间件
+- **可观测性** — Prometheus 指标（`signal_` namespace，含 `participants` gauge 和 `message_latency` histogram）、结构化 JSON 日志、请求日志中间件、Request-ID 链路追踪
+- **高可用** — Redis Pub/Sub 多节点扩展、graceful shutdown（含 WebSocket 连接优雅关闭）、panic recovery 中间件
 - **Web Demo** — 断线指数退避重连、连接状态颜色指示、Enter 发送聊天
 - **构建** — ldflags 版本注入、OCI 标签、Distroless 运行时
 

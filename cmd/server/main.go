@@ -9,21 +9,25 @@ import (
 	"time"
 
 	"go.uber.org/zap"
-	"signal/internal/auth"
-	"signal/internal/config"
-	"signal/internal/httpapi"
-	"signal/internal/logger"
-	"signal/internal/room"
-	"signal/internal/version"
+	"github.com/LessUp/aurora-signal/internal/auth"
+	"github.com/LessUp/aurora-signal/internal/config"
+	"github.com/LessUp/aurora-signal/internal/httpapi"
+	"github.com/LessUp/aurora-signal/internal/logger"
+	"github.com/LessUp/aurora-signal/internal/room"
+	"github.com/LessUp/aurora-signal/internal/version"
 )
 
 func main() {
 	cfg := config.Load()
-	if err := cfg.Validate(); err != nil {
+	warnings, err := cfg.Validate()
+	if err != nil {
 		panic("config validation failed: " + err.Error())
 	}
 	log := logger.New(cfg.LogLevel)
 	defer func() { _ = log.Sync() }()
+	for _, w := range warnings {
+		log.Warn(w)
+	}
 	log.Info("starting signal server",
 		zap.String("version", version.Version),
 		zap.String("commit", version.Commit),

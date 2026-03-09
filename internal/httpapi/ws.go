@@ -11,11 +11,16 @@ import (
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
-	redispubsub "signal/internal/store/redis"
-	"signal/internal/observability"
-	"signal/internal/room"
-	"signal/internal/signaling"
+	redispubsub "github.com/LessUp/aurora-signal/internal/store/redis"
+	"github.com/LessUp/aurora-signal/internal/observability"
+	"github.com/LessUp/aurora-signal/internal/room"
+	"github.com/LessUp/aurora-signal/internal/signaling"
 )
+
+// ---------------------------------------------------------------------------
+// safeWS wraps a *websocket.Conn with a mutex so concurrent goroutines (ping
+// ticker, read loop, broadcast) can safely write.
+// ---------------------------------------------------------------------------
 
 type safeWS struct {
 	Conn *websocket.Conn
@@ -34,15 +39,231 @@ func (s *safeWS) WriteControl(messageType int, data []byte, deadline time.Time) 
 	return s.Conn.WriteControl(messageType, data, deadline)
 }
 
-// routeMessage sends a message to a specific peer or broadcasts to the room,
-// with Redis fallback for multi-node deployments.
+// ---------------------------------------------------------------------------
+// wsSession holds the full state of a single WebSocket connection. Extracting
+// this from Server keeps the handler readable and testable.
+// ---------------------------------------------------------------------------
+
+type wsSession struct {
+	srv         *Server
+	ws          *safeWS
+	conn        *websocket.Conn
+	peerID      string
+	userID      string
+	role        string
+	displayName string
+	roomID      string
+	limiter     *rate.Limiter
+	done        chan struct{} // closed to stop ping goroutine
+}
+
+func (s *Server) newSession(conn *websocket.Conn, userID, role, displayName string) *wsSession {
+	return &wsSession{
+		srv:         s,
+		ws:          &safeWS{Conn: conn},
+		conn:        conn,
+		peerID:      uuid.NewString(),
+		userID:      userID,
+		role:        role,
+		displayName: displayName,
+		limiter:     rate.NewLimiter(rate.Limit(s.cfg.Security.RateLimit.WSPerConnRPS), s.cfg.Security.RateLimit.WSBurst),
+		done:        make(chan struct{}),
+	}
+}
+
+// sendError is a helper to write a typed error envelope.
+func (sess *wsSession) sendError(code int, message string) {
+	_ = sess.ws.WriteJSON(signaling.Envelope{
+		Type:    signaling.TypeError,
+		Payload: mustJSON(signaling.ErrorPayload{Code: code, Message: message}),
+	})
+}
+
+// startPing launches the heartbeat goroutine. It returns immediately.
+func (sess *wsSession) startPing(interval time.Duration) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				_ = sess.ws.WriteControl(websocket.PingMessage, []byte("ping"), time.Now().Add(5*time.Second))
+			case <-sess.done:
+				return
+			}
+		}
+	}()
+}
+
+// joinRoom reads the mandatory first "join" message, validates it against the
+// JWT claims, and adds the participant to the room. Returns the list of
+// existing peers, or an error string if the join failed (error already sent to
+// the client in that case).
+func (sess *wsSession) joinRoom(claims *signaling.JoinPayload, tokenRoomID string) ([]*room.Participant, bool) {
+	var env signaling.Envelope
+	if err := sess.conn.ReadJSON(&env); err != nil {
+		return nil, false
+	}
+	if env.Type != signaling.TypeJoin {
+		sess.sendError(2001, "first message must be join")
+		return nil, false
+	}
+
+	var jp signaling.JoinPayload
+	_ = json.Unmarshal(env.Payload, &jp)
+
+	if jp.RoomID == "" {
+		sess.sendError(2001, "roomId required")
+		return nil, false
+	}
+	if tokenRoomID != "" && tokenRoomID != jp.RoomID {
+		sess.sendError(2003, "forbidden room")
+		return nil, false
+	}
+	sess.roomID = jp.RoomID
+	if jp.DisplayName != "" {
+		sess.displayName = jp.DisplayName
+	}
+	if jp.Role != "" {
+		sess.role = jp.Role
+	}
+
+	p := &room.Participant{
+		ID:          sess.peerID,
+		UserID:      sess.userID,
+		Role:        sess.role,
+		DisplayName: sess.displayName,
+		Conn:        sess.ws,
+		JoinedAt:    time.Now(),
+	}
+	peers, err := sess.srv.rooms.Join(sess.roomID, p)
+	if err != nil {
+		sess.sendError(2010, err.Error())
+		return nil, false
+	}
+	return peers, true
+}
+
+// notifyJoined sends the "joined" envelope to this peer and broadcasts
+// "participant-joined" to all others.
+func (sess *wsSession) notifyJoined(peers []*room.Participant) {
+	peersInfo := make([]map[string]any, 0, len(peers))
+	for _, pp := range peers {
+		peersInfo = append(peersInfo, map[string]any{
+			"id": pp.ID, "role": pp.Role, "displayName": pp.DisplayName,
+		})
+	}
+	_ = sess.ws.WriteJSON(signaling.Envelope{
+		Type:   signaling.TypeJoined,
+		RoomID: sess.roomID,
+		From:   sess.peerID,
+		Payload: mustJSON(map[string]any{
+			"self":       map[string]any{"id": sess.peerID, "role": sess.role, "displayName": sess.displayName},
+			"peers":      peersInfo,
+			"iceServers": sess.srv.buildICEServers(),
+		}),
+	})
+
+	sess.srv.rooms.Broadcast(sess.roomID, sess.peerID, signaling.Envelope{
+		Type:   signaling.TypePeerJoin,
+		RoomID: sess.roomID,
+		From:   sess.peerID,
+		Payload: mustJSON(map[string]any{
+			"id": sess.peerID, "role": sess.role, "displayName": sess.displayName,
+		}),
+	})
+}
+
+// readLoop processes messages until the client disconnects or sends "leave".
+func (sess *wsSession) readLoop() {
+	for {
+		var msg signaling.Envelope
+		if err := sess.conn.ReadJSON(&msg); err != nil {
+			return // connection closed or read error
+		}
+		observability.MessagesInTotal.Inc()
+
+		if !sess.limiter.Allow() {
+			sess.sendError(2007, "rate_limited")
+			continue
+		}
+
+		switch msg.Type {
+		case signaling.TypeOffer, signaling.TypeAnswer, signaling.TypeTrickle:
+			if sess.role == "viewer" {
+				sess.sendError(2003, "viewers cannot send media signaling")
+				continue
+			}
+			if msg.To == "" {
+				sess.sendError(2001, "missing to")
+				continue
+			}
+			sess.srv.routeMessage(sess.roomID, sess.peerID, msg)
+
+		case signaling.TypeChat:
+			sess.srv.routeMessage(sess.roomID, sess.peerID, msg)
+
+		case signaling.TypeMute, signaling.TypeUnmute:
+			// mute/unmute targeting another peer requires moderator role
+			if msg.To != "" && msg.To != sess.peerID && sess.role != "moderator" {
+				sess.sendError(2003, "only moderators can mute/unmute others")
+				continue
+			}
+			sess.srv.routeMessage(sess.roomID, sess.peerID, msg)
+
+		case signaling.TypeLeave:
+			return
+
+		default:
+			sess.sendError(2006, "unsupported_type")
+		}
+	}
+}
+
+// cleanup sends a close frame, removes the peer from the room, broadcasts
+// departure, and tears down the Redis subscription refcount.
+func (sess *wsSession) cleanup() {
+	_ = sess.ws.WriteControl(websocket.CloseMessage,
+		websocket.FormatCloseMessage(websocket.CloseNormalClosure, "bye"),
+		time.Now().Add(3*time.Second))
+
+	close(sess.done) // stop ping goroutine
+
+	if sess.roomID == "" {
+		return // never joined a room
+	}
+
+	if _, ok := sess.srv.rooms.Leave(sess.roomID, sess.peerID); ok {
+		sess.srv.rooms.Broadcast(sess.roomID, sess.peerID, signaling.Envelope{
+			Type:    signaling.TypePeerLeave,
+			RoomID:  sess.roomID,
+			From:    sess.peerID,
+			Payload: mustJSON(map[string]any{"id": sess.peerID}),
+		})
+		sess.srv.log.Info("peer left", zap.String("peerID", sess.peerID), zap.String("roomID", sess.roomID))
+	}
+
+	sess.srv.unsubscribeRoomIfLast(sess.roomID)
+}
+
+// ---------------------------------------------------------------------------
+// Server-level helpers
+// ---------------------------------------------------------------------------
+
+// routeMessage stamps envelope metadata and sends to a specific peer or
+// broadcasts to the room, with Redis fallback for multi-node deployments.
 func (s *Server) routeMessage(roomID, peerID string, msg signaling.Envelope) {
+	now := time.Now()
+	msg.Version = "v1"
 	msg.RoomID = roomID
 	msg.From = peerID
-	msg.Ts = time.Now().UnixMilli()
+	msg.Ts = now.UnixMilli()
 	if msg.ID == "" {
 		msg.ID = uuid.NewString()
 	}
+	defer func() {
+		observability.MessageLatency.Observe(time.Since(now).Seconds())
+	}()
 	if msg.To != "" {
 		if err := s.rooms.SendTo(roomID, msg.To, msg); err != nil && s.bus != nil {
 			_ = s.bus.PublishDirect(roomID, msg.To, msg)
@@ -55,7 +276,52 @@ func (s *Server) routeMessage(roomID, peerID string, msg signaling.Envelope) {
 	}
 }
 
+// subscribeRoomRedis increments the per-room subscriber refcount and
+// subscribes the Redis channel if this is the first local participant.
+func (s *Server) subscribeRoomRedis(roomID string) {
+	if s.bus == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.roomSubs[roomID] == 0 {
+		if err := s.bus.SubscribeRoom(roomID, func(wm redispubsub.WireMessage) {
+			switch wm.Kind {
+			case redispubsub.KindDirect:
+				_ = s.rooms.SendTo(wm.RoomID, wm.ToPeer, wm.Envelope)
+			case redispubsub.KindBroadcast:
+				s.rooms.Broadcast(wm.RoomID, wm.ExcludePeer, wm.Envelope)
+			}
+		}); err != nil {
+			s.log.Warn("redis subscribe failed", zap.Error(err))
+		}
+	}
+	s.roomSubs[roomID]++
+}
+
+// unsubscribeRoomIfLast decrements the refcount and unsubscribes when it hits 0.
+func (s *Server) unsubscribeRoomIfLast(roomID string) {
+	if s.bus == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.roomSubs[roomID] > 0 {
+		s.roomSubs[roomID]--
+		if s.roomSubs[roomID] == 0 {
+			_ = s.bus.UnsubscribeRoom(roomID)
+			delete(s.roomSubs, roomID)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// handleWS is the HTTP handler for /ws/v1. It authenticates the token,
+// upgrades to WebSocket, and runs the session lifecycle.
+// ---------------------------------------------------------------------------
+
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
+	// --- authenticate ---
 	token := r.URL.Query().Get("token")
 	if token == "" {
 		if ah := r.Header.Get("Authorization"); strings.HasPrefix(strings.ToLower(ah), "bearer ") {
@@ -72,176 +338,45 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// --- upgrade ---
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
 	defer conn.Close()
-	ws := &safeWS{Conn: conn}
+	s.trackConn(conn)
+	defer s.untrackConn(conn)
 
-	peerID := uuid.NewString()
-	userID := claims.Subject
-	role := claims.Role
-	displayName := claims.DisplayName
+	sess := s.newSession(conn, claims.Subject, claims.Role, claims.DisplayName)
+	defer sess.cleanup()
 
-	// limits & heartbeat
-	conn.SetReadLimit(int64(s.cfg.Server.MaxMsgBytes))
+	// --- configure connection ---
 	pongWait := time.Duration(s.cfg.Server.PongWaitSec) * time.Second
 	pingInterval := time.Duration(s.cfg.Server.PingIntervalSec) * time.Second
+	conn.SetReadLimit(int64(s.cfg.Server.MaxMsgBytes))
 	_ = conn.SetReadDeadline(time.Now().Add(pongWait))
 	conn.SetPongHandler(func(string) error {
 		return conn.SetReadDeadline(time.Now().Add(pongWait))
 	})
 
-	limiter := rate.NewLimiter(rate.Limit(s.cfg.Security.RateLimit.WSPerConnRPS), s.cfg.Security.RateLimit.WSBurst)
-
 	observability.WSConnections.Inc()
 	defer observability.WSConnections.Dec()
 
-	// ping goroutine
-	done := make(chan struct{})
-	go func() {
-		ticker := time.NewTicker(pingInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				_ = ws.WriteControl(websocket.PingMessage, []byte("ping"), time.Now().Add(5*time.Second))
-			case <-done:
-				return
-			}
-		}
-	}()
+	sess.startPing(pingInterval)
 
-	// read first message must be join
-	var env signaling.Envelope
-	if err := conn.ReadJSON(&env); err != nil {
-		close(done)
+	// --- join ---
+	peers, ok := sess.joinRoom(nil, claims.Rid)
+	if !ok {
 		return
 	}
-	if env.Type != signaling.TypeJoin {
-		_ = ws.WriteJSON(signaling.Envelope{Type: signaling.TypeError, Payload: mustJSON(signaling.ErrorPayload{Code: 2001, Message: "first message must be join"})})
-		close(done)
-		return
-	}
-	var jp signaling.JoinPayload
-	_ = json.Unmarshal(env.Payload, &jp)
-	roomID := jp.RoomID
-	if roomID == "" {
-		_ = ws.WriteJSON(signaling.Envelope{Type: signaling.TypeError, Payload: mustJSON(signaling.ErrorPayload{Code: 2001, Message: "roomId required"})})
-		close(done)
-		return
-	}
-	if claims.Rid != "" && claims.Rid != roomID {
-		_ = ws.WriteJSON(signaling.Envelope{Type: signaling.TypeError, Payload: mustJSON(signaling.ErrorPayload{Code: 2003, Message: "forbidden room"})})
-		close(done)
-		return
-	}
-	if jp.DisplayName != "" {
-		displayName = jp.DisplayName
-	}
-	if jp.Role != "" {
-		role = jp.Role
-	}
+	s.log.Info("peer joined",
+		zap.String("peerID", sess.peerID),
+		zap.String("roomID", sess.roomID),
+		zap.String("userID", sess.userID),
+	)
+	s.subscribeRoomRedis(sess.roomID)
+	sess.notifyJoined(peers)
 
-	p := &room.Participant{ID: peerID, UserID: userID, Role: role, DisplayName: displayName, Conn: ws, JoinedAt: time.Now()}
-	peers, err := s.rooms.Join(roomID, p)
-	if err != nil {
-		_ = ws.WriteJSON(signaling.Envelope{Type: signaling.TypeError, Payload: mustJSON(signaling.ErrorPayload{Code: 2010, Message: err.Error()})})
-		close(done)
-		return
-	}
-
-	s.log.Info("peer joined", zap.String("peerID", peerID), zap.String("roomID", roomID), zap.String("userID", userID))
-
-	// Subscribe Redis room channel if enabled
-	if s.bus != nil {
-		s.mu.Lock()
-		if s.roomSubs[roomID] == 0 {
-			if err := s.bus.SubscribeRoom(roomID, func(wm redispubsub.WireMessage) {
-				switch wm.Kind {
-				case redispubsub.KindDirect:
-					_ = s.rooms.SendTo(wm.RoomID, wm.ToPeer, wm.Envelope)
-				case redispubsub.KindBroadcast:
-					s.rooms.Broadcast(wm.RoomID, wm.ExcludePeer, wm.Envelope)
-				}
-			}); err != nil {
-				s.log.Warn("redis subscribe failed", zap.Error(err))
-			}
-		}
-		s.roomSubs[roomID]++
-		s.mu.Unlock()
-	}
-
-	// send joined + peers
-	peersInfo := make([]map[string]any, 0, len(peers))
-	for _, pp := range peers {
-		peersInfo = append(peersInfo, map[string]any{"id": pp.ID, "role": pp.Role, "displayName": pp.DisplayName})
-	}
-	_ = ws.WriteJSON(signaling.Envelope{Type: signaling.TypeJoined, RoomID: roomID, From: peerID, Payload: mustJSON(map[string]any{
-		"self":       map[string]any{"id": peerID, "role": role, "displayName": displayName},
-		"peers":      peersInfo,
-		"iceServers": s.buildICEServers(),
-	})})
-
-	// notify others
-	s.rooms.Broadcast(roomID, peerID, signaling.Envelope{Type: signaling.TypePeerJoin, RoomID: roomID, From: peerID, Payload: mustJSON(map[string]any{"id": peerID, "role": role, "displayName": displayName})})
-
-	// read loop
-	for {
-		var msg signaling.Envelope
-		if err := conn.ReadJSON(&msg); err != nil {
-			break
-		}
-		observability.MessagesInTotal.Inc()
-		if !limiter.Allow() {
-			_ = ws.WriteJSON(signaling.Envelope{Type: signaling.TypeError, Payload: mustJSON(signaling.ErrorPayload{Code: 2007, Message: "rate_limited"})})
-			continue
-		}
-		switch msg.Type {
-		case signaling.TypeOffer, signaling.TypeAnswer, signaling.TypeTrickle:
-			if msg.To == "" {
-				_ = ws.WriteJSON(signaling.Envelope{Type: signaling.TypeError, Payload: mustJSON(signaling.ErrorPayload{Code: 2001, Message: "missing to"})})
-				continue
-			}
-			msg.RoomID = roomID
-			msg.From = peerID
-			msg.Ts = time.Now().UnixMilli()
-			if msg.ID == "" {
-				msg.ID = uuid.NewString()
-			}
-			if err := s.rooms.SendTo(roomID, msg.To, msg); err != nil && s.bus != nil {
-				_ = s.bus.PublishDirect(roomID, msg.To, msg)
-			}
-		case signaling.TypeChat, signaling.TypeMute, signaling.TypeUnmute:
-			s.routeMessage(roomID, peerID, msg)
-		case signaling.TypeLeave:
-			goto end
-		default:
-			_ = ws.WriteJSON(signaling.Envelope{Type: signaling.TypeError, Payload: mustJSON(signaling.ErrorPayload{Code: 2006, Message: "unsupported_type"})})
-		}
-	}
-
-end:
-	// send graceful close frame
-	_ = ws.WriteControl(websocket.CloseMessage,
-		websocket.FormatCloseMessage(websocket.CloseNormalClosure, "bye"),
-		time.Now().Add(3*time.Second))
-	// cleanup
-	close(done)
-	if _, ok := s.rooms.Leave(roomID, peerID); ok {
-		s.rooms.Broadcast(roomID, peerID, signaling.Envelope{Type: signaling.TypePeerLeave, RoomID: roomID, From: peerID, Payload: mustJSON(map[string]any{"id": peerID})})
-		s.log.Info("peer left", zap.String("peerID", peerID), zap.String("roomID", roomID))
-	}
-	if s.bus != nil {
-		s.mu.Lock()
-		if s.roomSubs[roomID] > 0 {
-			s.roomSubs[roomID]--
-			if s.roomSubs[roomID] == 0 {
-				_ = s.bus.UnsubscribeRoom(roomID)
-				delete(s.roomSubs, roomID)
-			}
-		}
-		s.mu.Unlock()
-	}
+	// --- read loop (blocks until disconnect or leave) ---
+	sess.readLoop()
 }

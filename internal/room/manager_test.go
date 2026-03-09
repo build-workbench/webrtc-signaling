@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"go.uber.org/zap"
-	"signal/internal/signaling"
+	"github.com/LessUp/aurora-signal/internal/signaling"
 )
 
 type mockConn struct{ n int64 }

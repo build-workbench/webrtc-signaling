@@ -9,7 +9,7 @@ import (
 
 	redis "github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
-	"signal/internal/signaling"
+	"github.com/LessUp/aurora-signal/internal/signaling"
 )
 
 type MessageKind string

@@ -36,21 +36,8 @@ type JoinPayload struct {
 	Role        string `json:"role,omitempty"`
 }
 
-type SDP struct {
-	SDP string `json:"sdp"`
-}
-
-type Trickle struct {
-	Candidate any `json:"candidate"`
-}
-
-type Chat struct {
-	To   string `json:"to,omitempty"`
-	Text string `json:"text"`
-}
-
 type ErrorPayload struct {
 	Code    int         `json:"code"`
 	Message string      `json:"message"`
-	Details interface{} `json:"details,omitempty"`
+	Details any `json:"details,omitempty"`
 }
