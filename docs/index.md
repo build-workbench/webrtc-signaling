@@ -12,7 +12,8 @@ description: "Aurora Signal — 基于 Go 的 WebRTC 信令服务，房间管理
 {: .fs-6 .fw-300 }
 
 [快速开始](#快速开始){: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 }
-[API 参考]({% link API.md %}){: .btn .fs-5 .mb-4 .mb-md-0 }
+[API 参考]({% link API.md %}){: .btn .fs-5 .mb-4 .mb-md-0 .mr-2 }
+[系统设计]({% link design.md %}){: .btn .btn-outline .fs-5 .mb-4 .mb-md-0 }
 
 ---
 
@@ -21,9 +22,10 @@ description: "Aurora Signal — 基于 Go 的 WebRTC 信令服务，房间管理
 | 能力 | 说明 |
 |:--|:--|
 | **房间管理** | REST API 创建 / 查询房间，`maxParticipants` 人数上限，空房自动清理 |
-| **WebSocket 信令** | offer / answer / trickle / chat / mute / leave，消息自动填充 `id` + `ts` |
+| **WebSocket 信令** | offer / answer / trickle / chat / mute / leave，消息自动填充 `id` + `ts` + `version` |
+| **角色权限** | 三级角色：`viewer` / `speaker` / `moderator`（可远程静音他人） |
 | **安全** | JWT 认证、Admin Key 常量时间比较、速率限制、安全响应头 |
-| **可观测性** | Prometheus 指标（`signal_`）、结构化 JSON 日志、Request-ID 追踪 |
+| **可观测性** | Prometheus 指标（`signal_*`）、结构化 JSON 日志、Request-ID 追踪 |
 | **高可用** | Redis Pub/Sub 多节点扩展、graceful shutdown、panic recovery |
 | **容器化** | ldflags 版本注入、OCI 标签、Distroless 运行时 |
 | **Web Demo** | 断线退避重连、连接状态指示、Enter 发送聊天 |
@@ -100,6 +102,19 @@ make run            # 或 go run ./cmd/server
 
 ---
 
+## 技术栈
+
+| 技术 | 版本 | 用途 |
+|:--|:--|:--|
+| Go | 1.23 | 服务端主语言 |
+| gorilla/websocket | 1.5 | WebSocket 实现 |
+| Redis | 7+ | Pub/Sub 多节点扩展 |
+| Prometheus | — | 指标采集 |
+| Docker | — | 容器化部署 |
+| coturn | — | STUN / TURN 服务 |
+
+---
+
 ## 许可证
 
-[MIT License](https://github.com/LessUp/aurora-signal/blob/main/LICENSE) &copy; 2025 LessUp
+[MIT License](https://github.com/LessUp/aurora-signal/blob/main/LICENSE) &copy; 2025-2026 LessUp
