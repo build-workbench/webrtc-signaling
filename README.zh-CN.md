@@ -7,6 +7,7 @@
 [![Go](https://img.shields.io/badge/Go-1.23-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/LessUp/aurora-signal/actions/workflows/ci.yml/badge.svg)](https://github.com/LessUp/aurora-signal/actions/workflows/ci.yml)
+[![Pages](https://github.com/LessUp/aurora-signal/actions/workflows/pages.yml/badge.svg)](https://github.com/LessUp/aurora-signal/actions/workflows/pages.yml)
 [![Docs](https://img.shields.io/badge/%E6%96%87%E6%A1%A3-GitHub%20Pages-blue?logo=github)](https://lessup.github.io/aurora-signal/)
 [![Go Report Card](https://goreportcard.com/badge/github.com/LessUp/aurora-signal)](https://goreportcard.com/report/github.com/LessUp/aurora-signal)
 
