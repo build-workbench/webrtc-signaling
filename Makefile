@@ -9,7 +9,7 @@ LDFLAGS := -s -w \
 	-X github.com/LessUp/aurora-signal/internal/version.Commit=$(COMMIT) \
 	-X github.com/LessUp/aurora-signal/internal/version.BuildTime=$(BUILD_TIME)
 
-.PHONY: all deps build run test test-race test-cover vet lint docker-build compose-up compose-down
+.PHONY: all deps build run test test-race test-cover vet lint docker-build docker-push compose-up compose-down compose-logs
 
 all: build
 
@@ -40,10 +40,22 @@ lint:
 	golangci-lint run || echo "Install golangci-lint for linting"
 
 docker-build:
-	docker build -t lessup/signaling:dev .
+	docker build \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT=$(COMMIT) \
+		--build-arg BUILD_TIME=$(BUILD_TIME) \
+		-t lessup/signaling:$(VERSION) \
+		-t lessup/signaling:latest .
+
+docker-push:
+	docker push lessup/signaling:$(VERSION)
+	docker push lessup/signaling:latest
 
 compose-up:
 	cd docker && docker compose up --build -d
 
 compose-down:
-	cd docker && docker compose down
+	cd docker && docker compose down -v
+
+compose-logs:
+	cd docker && docker compose logs -f

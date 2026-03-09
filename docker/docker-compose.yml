@@ -1,33 +1,75 @@
+networks:
+  signal-net:
+    driver: bridge
+
+volumes:
+  redis-data:
+
 services:
   server:
-    build: ..
+    build:
+      context: ..
+      args:
+        GO_VERSION: "1.23"
     image: lessup/signaling:dev
-    environment:
-      - SIGNAL_ADDR=:8080
-      - SIGNAL_JWT_SECRET=dev-secret-change
-      - SIGNAL_ALLOWED_ORIGINS=
-      - SIGNAL_PROM_ENABLED=true
-      - SIGNAL_REDIS_ENABLED=true
-      - SIGNAL_REDIS_ADDR=redis:6379
-      - SIGNAL_STUN=stun:stun.l.google.com:19302
-      - SIGNAL_TURN_URLS=turn:coturn:3478
-      - SIGNAL_TURN_USERNAME=turnuser
-      - SIGNAL_TURN_CREDENTIAL=turnpass
+    restart: unless-stopped
+    env_file:
+      - .env
     ports:
-      - "8080:8080"
+      - "${SIGNAL_PORT:-8080}:8080"
+      - "${SIGNAL_METRICS_PORT:-9090}:9090"
     depends_on:
-      - redis
-      - coturn
+      redis:
+        condition: service_healthy
+      coturn:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "1.0"
+    networks:
+      - signal-net
+
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.5"
+    networks:
+      - signal-net
+
   coturn:
-    image: instrumentisto/coturn:latest
+    image: instrumentisto/coturn:4.6
+    restart: unless-stopped
     volumes:
       - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
-    network_mode: bridge
     ports:
       - "3478:3478/tcp"
       - "3478:3478/udp"
       - "49152-49200:49152-49200/udp"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.5"
+    networks:
+      - signal-net

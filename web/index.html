@@ -3,36 +3,76 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Signaling Demo</title>
+  <meta name="description" content="Aurora Signal – WebRTC signaling demo" />
+  <meta name="theme-color" content="#0b1020" />
+  <title>Aurora Signal · Demo</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌌</text></svg>" />
   <link rel="stylesheet" href="/demo/style.css" />
 </head>
 <body>
   <div class="container">
-    <h1>WebRTC 信令演示</h1>
-    <div class="controls">
-      <input id="room" placeholder="房间ID，例如 room-001" />
-      <input id="name" placeholder="显示名，例如 Alice" />
-      <button id="start">加入房间</button>
-      <button id="leave" disabled>离开</button>
-    </div>
-    <div class="status" id="status">未连接</div>
+    <!-- Header -->
+    <header class="header">
+      <h1>Aurora Signal</h1>
+      <span class="badge" id="connBadge">离线</span>
+    </header>
 
-    <div class="videos">
-      <div>
-        <h3>本地视频</h3>
-        <video id="local" autoplay playsinline muted></video>
+    <!-- Join form -->
+    <section class="join-panel" id="joinPanel">
+      <div class="form-row">
+        <label for="room">房间</label>
+        <input id="room" placeholder="room-001" autocomplete="off" spellcheck="false" />
       </div>
-      <div>
-        <h3>远端视频</h3>
-        <div id="remotes"></div>
+      <div class="form-row">
+        <label for="name">昵称</label>
+        <input id="name" placeholder="Alice" autocomplete="off" spellcheck="false" />
       </div>
-    </div>
+      <button id="start" class="btn btn-primary">加入房间</button>
+    </section>
 
-    <div class="chat">
-      <input id="chatText" placeholder="发送聊天室消息（可选）" />
-      <button id="sendChat">发送</button>
-      <pre id="chatLog"></pre>
-    </div>
+    <!-- In-call UI (hidden until joined) -->
+    <section class="call-panel hidden" id="callPanel">
+      <!-- Video grid -->
+      <div class="video-grid" id="videoGrid">
+        <div class="video-card video-card--local">
+          <video id="local" autoplay playsinline muted></video>
+          <span class="video-label" id="localLabel">我</span>
+        </div>
+      </div>
+
+      <!-- Media controls -->
+      <div class="media-controls">
+        <button id="toggleMic" class="btn-icon" title="切换麦克风" aria-label="切换麦克风">
+          <svg id="micOn" class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+          <svg id="micOff" class="icon hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" x2="22" y1="2" y2="22"/><path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"/><path d="M5 10v2a7 7 0 0 0 12 5"/><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+        </button>
+        <button id="toggleCam" class="btn-icon" title="切换摄像头" aria-label="切换摄像头">
+          <svg id="camOn" class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>
+          <svg id="camOff" class="icon hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.66 5H14a2 2 0 0 1 2 2v2.5l5.248-3.062A.5.5 0 0 1 22 6.862v10.276"/><path d="M16 16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
+        </button>
+        <button id="leave" class="btn-icon btn-icon--danger" title="离开房间" aria-label="离开房间">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 18.36 5.64 5.64"/><path d="m5.64 18.36 12.72-12.72"/></svg>
+        </button>
+      </div>
+
+      <!-- Participants -->
+      <details class="participants" open>
+        <summary>参与者 (<span id="peerCount">0</span>)</summary>
+        <ul id="peerList"></ul>
+      </details>
+
+      <!-- Chat -->
+      <div class="chat">
+        <div class="chat-log" id="chatLog"></div>
+        <form class="chat-input" id="chatForm">
+          <input id="chatText" placeholder="输入消息..." autocomplete="off" />
+          <button type="submit" class="btn btn-sm">发送</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Status bar -->
+    <div class="status" id="status">就绪</div>
   </div>
 
   <script src="/demo/app.js"></script>
