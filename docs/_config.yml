@@ -32,7 +32,7 @@ color_scheme: light
 
 last_edit_time_format: "%Y-%m-%d %H:%M"
 
-footer_content: "Copyright &copy; 2025 LessUp &mdash; <a href=\"https://github.com/LessUp/aurora-signal/blob/main/LICENSE\">MIT License</a>"
+footer_content: "Copyright &copy; 2025-2026 LessUp &mdash; <a href=\"https://github.com/LessUp/aurora-signal/blob/main/LICENSE\">MIT License</a>"
 
 # --- Mermaid ---------------------------------------------------------------
 mermaid:
