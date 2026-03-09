@@ -7,6 +7,7 @@
 [![Go](https://img.shields.io/badge/Go-1.23-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/LessUp/aurora-signal/actions/workflows/ci.yml/badge.svg)](https://github.com/LessUp/aurora-signal/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/%E6%96%87%E6%A1%A3-GitHub%20Pages-blue?logo=github)](https://lessup.github.io/aurora-signal/)
 [![Go Report Card](https://goreportcard.com/badge/github.com/LessUp/aurora-signal)](https://goreportcard.com/report/github.com/LessUp/aurora-signal)
 
 简体中文 | [English](README.md)
@@ -105,10 +106,12 @@ make build         # 编译（含版本注入）
 
 ## 📖 文档
 
-- [API 参考](docs/API.md)
-- [设计文档](docs/design.md)
-- [更新日志](CHANGELOG.md)
-- [贡献指南](CONTRIBUTING.md)
+📘 **在线文档** → [lessup.github.io/aurora-signal](https://lessup.github.io/aurora-signal/)
+
+- [API 参考](https://lessup.github.io/aurora-signal/API.html)
+- [系统设计](https://lessup.github.io/aurora-signal/design.html)
+- [变更日志](https://lessup.github.io/aurora-signal/changelog.html)
+- [贡献指南](https://lessup.github.io/aurora-signal/contributing.html)
 
 ## 📄 许可证
 

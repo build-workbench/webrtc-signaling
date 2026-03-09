@@ -7,6 +7,7 @@
 [![Go](https://img.shields.io/badge/Go-1.23-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/LessUp/aurora-signal/actions/workflows/ci.yml/badge.svg)](https://github.com/LessUp/aurora-signal/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/Docs-GitHub%20Pages-blue?logo=github)](https://lessup.github.io/aurora-signal/)
 [![Go Report Card](https://goreportcard.com/badge/github.com/LessUp/aurora-signal)](https://goreportcard.com/report/github.com/LessUp/aurora-signal)
 
 [简体中文](README.zh-CN.md) | English
@@ -105,10 +106,12 @@ Load testing: `k6 run k6/ws-smoke.js`
 
 ## 📖 Documentation
 
-- [API Reference](docs/API.md)
-- [Design Document](docs/design.md)
-- [Changelog](CHANGELOG.md)
-- [Contributing](CONTRIBUTING.md)
+📘 **Online docs** → [lessup.github.io/aurora-signal](https://lessup.github.io/aurora-signal/)
+
+- [API Reference](https://lessup.github.io/aurora-signal/API.html)
+- [Design Document](https://lessup.github.io/aurora-signal/design.html)
+- [Changelog](https://lessup.github.io/aurora-signal/changelog.html)
+- [Contributing](https://lessup.github.io/aurora-signal/contributing.html)
 
 ## 📄 License
 

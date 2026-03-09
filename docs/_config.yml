@@ -2,7 +2,7 @@ title: Aurora Signal
 description: WebRTC 信令服务 — 房间管理、会话协商与基础控制
 remote_theme: just-the-docs/just-the-docs@v0.10.0
 
-url: ""
+url: "https://lessup.github.io"
 baseurl: "/aurora-signal"
 
 # --- Navigation -----------------------------------------------------------
