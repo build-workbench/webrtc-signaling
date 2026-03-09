@@ -1,0 +1,64 @@
+title: Aurora Signal
+description: WebRTC 信令服务 — 房间管理、会话协商与基础控制
+remote_theme: just-the-docs/just-the-docs@v0.10.0
+
+url: ""
+baseurl: "/aurora-signal"
+
+# --- Navigation -----------------------------------------------------------
+aux_links:
+  "GitHub":
+    - "https://github.com/LessUp/aurora-signal"
+aux_links_new_tab: true
+nav_sort: case_insensitive
+
+# --- Edit on GitHub --------------------------------------------------------
+gh_edit_link: true
+gh_edit_link_text: "在 GitHub 上编辑此页"
+gh_edit_repository: "https://github.com/LessUp/aurora-signal"
+gh_edit_source: docs
+gh_edit_branch: "main"
+gh_edit_view_mode: "edit"
+
+# --- Search & UX -----------------------------------------------------------
+heading_anchors: true
+search_enabled: true
+search.button: true
+
+back_to_top: true
+back_to_top_text: "回到顶部"
+
+color_scheme: light
+
+last_edit_time_format: "%Y-%m-%d %H:%M"
+
+footer_content: "Copyright &copy; 2025 LessUp &mdash; <a href=\"https://github.com/LessUp/aurora-signal/blob/main/LICENSE\">MIT License</a>"
+
+# --- Mermaid ---------------------------------------------------------------
+mermaid:
+  version: "10.9.0"
+
+# --- Callouts --------------------------------------------------------------
+callouts:
+  note:
+    title: 注意
+    color: blue
+  warning:
+    title: 警告
+    color: red
+  tip:
+    title: 提示
+    color: green
+  important:
+    title: 重要
+    color: yellow
+
+# --- Plugins ---------------------------------------------------------------
+plugins:
+  - jekyll-seo-tag
+
+# --- Exclude ---------------------------------------------------------------
+exclude:
+  - node_modules/
+  - vendor/
+  - Gemfile.lock
