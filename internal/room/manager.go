@@ -5,10 +5,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-	"go.uber.org/zap"
 	"github.com/LessUp/aurora-signal/internal/observability"
 	"github.com/LessUp/aurora-signal/internal/signaling"
+	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type SafeConn interface {
@@ -32,9 +32,9 @@ type Room struct {
 }
 
 type Manager struct {
-	mu    sync.RWMutex
-	rooms map[string]*Room
-	log   *zap.Logger
+	mu     sync.RWMutex
+	rooms  map[string]*Room
+	log    *zap.Logger
 	stopCh chan struct{}
 }
 

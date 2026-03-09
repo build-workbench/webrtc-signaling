@@ -25,8 +25,8 @@ type ServerCfg struct {
 }
 
 type SecurityCfg struct {
-	JWTSecret string `json:"jwtSecret"`
-	AdminKey  string `json:"adminKey"`
+	JWTSecret string       `json:"jwtSecret"`
+	AdminKey  string       `json:"adminKey"`
 	RateLimit RateLimitCfg `json:"rateLimit"`
 }
 

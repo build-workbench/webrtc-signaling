@@ -2,9 +2,9 @@ package httpapi
 
 import (
 	"encoding/json"
+	"github.com/LessUp/aurora-signal/internal/observability"
 	"net/http"
 	"strconv"
-	"github.com/LessUp/aurora-signal/internal/observability"
 )
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

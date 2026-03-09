@@ -7,14 +7,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/LessUp/aurora-signal/internal/observability"
+	"github.com/LessUp/aurora-signal/internal/room"
+	"github.com/LessUp/aurora-signal/internal/signaling"
+	redispubsub "github.com/LessUp/aurora-signal/internal/store/redis"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
-	redispubsub "github.com/LessUp/aurora-signal/internal/store/redis"
-	"github.com/LessUp/aurora-signal/internal/observability"
-	"github.com/LessUp/aurora-signal/internal/room"
-	"github.com/LessUp/aurora-signal/internal/signaling"
 )
 
 // ---------------------------------------------------------------------------

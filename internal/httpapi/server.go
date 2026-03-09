@@ -8,15 +8,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/LessUp/aurora-signal/internal/auth"
+	"github.com/LessUp/aurora-signal/internal/config"
+	"github.com/LessUp/aurora-signal/internal/room"
+	redispubsub "github.com/LessUp/aurora-signal/internal/store/redis"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
-	"github.com/LessUp/aurora-signal/internal/auth"
-	"github.com/LessUp/aurora-signal/internal/config"
-	"github.com/LessUp/aurora-signal/internal/room"
-	redispubsub "github.com/LessUp/aurora-signal/internal/store/redis"
 )
 
 type Server struct {
@@ -32,7 +32,7 @@ type Server struct {
 	roomSubs map[string]int
 
 	// activeConns tracks WebSocket connections for graceful shutdown.
-	connsMu    sync.Mutex
+	connsMu     sync.Mutex
 	activeConns map[*websocket.Conn]struct{}
 }
 

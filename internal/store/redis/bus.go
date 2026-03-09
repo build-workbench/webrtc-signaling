@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/LessUp/aurora-signal/internal/signaling"
 	redis "github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
-	"github.com/LessUp/aurora-signal/internal/signaling"
 )
 
 type MessageKind string
@@ -29,13 +29,13 @@ type WireMessage struct {
 }
 
 type Bus struct {
-	client   *redis.Client
-	log      *zap.Logger
-	nodeID   string
-	ctx      context.Context
-	cancel   context.CancelFunc
-	mu       sync.Mutex
-	subs     map[string]*redis.PubSub
+	client *redis.Client
+	log    *zap.Logger
+	nodeID string
+	ctx    context.Context
+	cancel context.CancelFunc
+	mu     sync.Mutex
+	subs   map[string]*redis.PubSub
 }
 
 func New(addr, password string, db int, nodeID string, log *zap.Logger) (*Bus, error) {

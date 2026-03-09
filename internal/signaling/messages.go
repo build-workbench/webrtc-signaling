@@ -37,7 +37,7 @@ type JoinPayload struct {
 }
 
 type ErrorPayload struct {
-	Code    int         `json:"code"`
-	Message string      `json:"message"`
-	Details any `json:"details,omitempty"`
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Details any    `json:"details,omitempty"`
 }

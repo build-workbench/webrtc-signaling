@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/websocket"
-	"go.uber.org/zap"
 	"github.com/LessUp/aurora-signal/internal/auth"
 	"github.com/LessUp/aurora-signal/internal/config"
 	"github.com/LessUp/aurora-signal/internal/room"
 	"github.com/LessUp/aurora-signal/internal/signaling"
+	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
 )
 
 func testServer(t *testing.T) (*Server, *httptest.Server) {

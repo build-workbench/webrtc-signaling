@@ -8,13 +8,13 @@ import (
 	"syscall"
 	"time"
 
-	"go.uber.org/zap"
 	"github.com/LessUp/aurora-signal/internal/auth"
 	"github.com/LessUp/aurora-signal/internal/config"
 	"github.com/LessUp/aurora-signal/internal/httpapi"
 	"github.com/LessUp/aurora-signal/internal/logger"
 	"github.com/LessUp/aurora-signal/internal/room"
 	"github.com/LessUp/aurora-signal/internal/version"
+	"go.uber.org/zap"
 )
 
 func main() {
