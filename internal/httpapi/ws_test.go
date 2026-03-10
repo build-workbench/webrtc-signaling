@@ -110,7 +110,9 @@ func testServerWithAdmin(t *testing.T, adminKey string) (*Server, *httptest.Serv
 
 func readEnvelope(t *testing.T, conn *websocket.Conn) signaling.Envelope {
 	t.Helper()
-	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	if err := conn.SetReadDeadline(time.Now().Add(3 * time.Second)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
 	var env signaling.Envelope
 	if err := conn.ReadJSON(&env); err != nil {
 		t.Fatalf("readJSON: %v", err)
