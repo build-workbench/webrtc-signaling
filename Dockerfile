@@ -33,7 +33,6 @@ LABEL org.opencontainers.image.title="aurora-signal" \
       org.opencontainers.image.licenses="MIT"
 WORKDIR /app
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=builder /out/signal-server /app/signal-server
 COPY web /app/web
 ENV SIGNAL_ADDR=:8080
