@@ -174,7 +174,7 @@ sequenceDiagram
 | `participant-left` | `{ id }` | 成员离开通知 |
 | `offer` / `answer` / `trickle` | 同上 | 转发对端 |
 | `chat` | `{ text }` | 转发文本 |
-| `mute-request` | `{ target? }` | 静音请求 |
+| `mute` / `unmute` | 转发控制消息 | 静音控制 |
 | `error` | `{ code, message, details? }` | 错误 |
 
 ### 错误码
@@ -213,17 +213,17 @@ sequenceDiagram
 
 ### JWT
 
-- 算法：HS256（默认）/ RS256
-- Claims：`sub`（userId）、`rid`（roomId）、`role`、`tenant?`、`exp`、`iat`、`nbf`
-- 有效期：5–30 分钟（可配）
+- 算法：HS256
+- Claims：`sub`（userId）、`rid`（roomId）、`role`、`tenant?`、`name`、`exp`、`iat`、`nbf`
+- 有效期：默认 15 分钟，最大 60 分钟
 
 ### 授权模型
 
 | 角色 | 权限 |
 |:--|:--|
-| `viewer` | 仅接收/发送面向自身的信令 |
-| `speaker` | 可发起 offer / answer / trickle |
-| `moderator` | 可踢人、静音他人、关闭房间 |
+| `viewer` | 可加入房间和接收消息，但不能发送 `offer` / `answer` / `trickle` |
+| `speaker` | 可发起 `offer` / `answer` / `trickle` 与普通控制消息 |
+| `moderator` | 具备 `speaker` 权限，并可对他人执行 `mute` / `unmute` |
 
 ### 防护措施
 
@@ -262,10 +262,8 @@ JSON 结构化，字段：`ts`、`level`、`msg`、`reqId`、`connId`、`roomId`
 | `participants` | Gauge | 当前参与者数 |
 | `messages_in_total` | Counter | 入站消息计数 |
 | `messages_out_total` | Counter | 出站消息计数 |
-| `message_bytes_in_total` | Counter | 入站字节数 |
-| `message_bytes_out_total` | Counter | 出站字节数 |
-| `message_latency_ms` | Histogram | 消息处理延迟 |
-| `errors_total` | Counter | 错误计数（按 code 标签） |
+| `message_latency_seconds` | Histogram | 消息处理延迟 |
+| `errors_total` | CounterVec | 错误计数（按 code 标签） |
 
 ### Tracing
 
@@ -314,8 +312,7 @@ turn:
 
 | 端口 | 用途 |
 |:--|:--|
-| 8080 | HTTP / WebSocket |
-| 9090 | Prometheus 指标（可选） |
+| 8080 | HTTP / WebSocket / 可选 Prometheus 指标（`/metrics`） |
 | 3478 / 5349 | coturn STUN / TURN + 中继端口范围 |
 
 ## 14. 开发与测试
@@ -340,7 +337,7 @@ turn:
 | 移动网络 / NAT 复杂 | 务必提供 TURN，默认启用 STUN |
 | 浏览器兼容 | 使用标准 SDP / ICE，跟随 Chrome / Firefox / Safari 变化测试 |
 | 资源滥用 | 限流、鉴权、最大房间规模限制 |
-| Redis 故障 | 本地降级（仅同节点通信）、告警与自动故障转移 |
+| Redis 故障 | 当前实现为启动失败或就绪失败，不再静默降级为单节点模式 |
 
 ## 17. 代码结构
 

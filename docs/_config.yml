@@ -18,7 +18,7 @@ gh_edit_link: true
 gh_edit_link_text: "在 GitHub 上编辑此页"
 gh_edit_repository: "https://github.com/LessUp/aurora-signal"
 gh_edit_source: docs
-gh_edit_branch: "main"
+gh_edit_branch: "master"
 gh_edit_view_mode: "edit"
 
 # --- Search & UX -----------------------------------------------------------
@@ -33,7 +33,7 @@ color_scheme: light
 
 last_edit_time_format: "%Y-%m-%d %H:%M"
 
-footer_content: "Copyright &copy; 2025-2026 LessUp &mdash; <a href=\"https://github.com/LessUp/aurora-signal/blob/main/LICENSE\">MIT License</a>"
+footer_content: "Copyright &copy; 2025-2026 LessUp &mdash; <a href=\"https://github.com/LessUp/aurora-signal/blob/master/LICENSE\">MIT License</a>"
 
 # --- Mermaid ---------------------------------------------------------------
 mermaid:

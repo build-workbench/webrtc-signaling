@@ -25,7 +25,7 @@
 - **WebSocket 信令** — offer / answer / trickle / chat / mute / leave，消息自动填充 `id` + `ts` + `version` 便于追踪
 - **角色权限** — 三级角色：`viewer`（不可发起媒体协商）/ `speaker` / `moderator`（可远程静音他人）
 - **安全** — JWT Token 认证、Admin Key 常量时间比较、每连接速率限制、安全响应头
-- **可观测性** — Prometheus 指标（`signal_*` 命名空间，含 `participants` gauge 和 `message_latency` histogram）、结构化 JSON 日志、请求日志中间件、Request-ID 链路追踪
+- **可观测性** — Prometheus 指标（`signal_*` 命名空间，含 `participants` gauge 和 `message_latency_seconds` histogram）、结构化 JSON 日志、请求日志中间件、Request-ID 链路追踪
 - **高可用** — Redis Pub/Sub 多节点扩展、优雅关闭（含 WebSocket 连接排空）、panic recovery 中间件
 - **Web Demo** — 断线指数退避重连、连接状态颜色指示、Enter 发送聊天
 - **构建** — `ldflags` 版本注入、OCI 标签、Distroless 运行时镜像
@@ -34,7 +34,7 @@
 
 ```bash
 # 1. 设置 JWT Secret
-export SIGNAL_JWT_SECRET="dev-secret-change"
+export SIGNAL_JWT_SECRET="change-me-to-a-long-random-secret"
 
 # 2. 运行服务
 make run
@@ -70,7 +70,7 @@ make run
 |------|--------|------|
 | `SIGNAL_LOG_LEVEL` | `info` | 日志级别（`debug` / `info` / `warn` / `error`） |
 | `SIGNAL_ADDR` | `:8080` | 监听地址 |
-| `SIGNAL_JWT_SECRET` | — | JWT 签名密钥（**必填**） |
+| `SIGNAL_JWT_SECRET` | — | JWT 签名密钥（**必填**，未设置时服务启动失败） |
 | `SIGNAL_ADMIN_KEY` | — | 管理 API 密钥（可选） |
 | `SIGNAL_ALLOWED_ORIGINS` | — | Origin 白名单（逗号分隔） |
 | `SIGNAL_MAX_MSG_BYTES` | `65536` | WebSocket 单消息大小上限（字节） |
@@ -89,6 +89,8 @@ make run
 docker build --build-arg VERSION=v0.2.0 -t lessup/signaling:v0.2.0 .
 
 # 本地编排（含 Redis + coturn）
+cp env.example docker/.env
+# 然后编辑 docker/.env 并设置 SIGNAL_JWT_SECRET
 cd docker && docker compose up --build
 ```
 

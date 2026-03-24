@@ -109,8 +109,8 @@ description: "REST 端点与 WebSocket 信令协议完整说明"
 |:--|:--|:--|
 | `userId` | 是 | 业务用户标识 |
 | `displayName` | 否 | 显示名 |
-| `role` | 否 | `viewer` / `speaker` / `moderator` |
-| `ttlSeconds` | 否 | Token 有效期（秒），默认 900 |
+| `role` | 否 | `viewer` / `speaker` / `moderator`，默认 `speaker` |
+| `ttlSeconds` | 否 | Token 有效期（秒），默认 900，最大 3600 |
 
 **200 OK**：
 
@@ -156,7 +156,7 @@ description: "REST 端点与 WebSocket 信令协议完整说明"
 | 状态码 | 含义 |
 |:--|:--|
 | 200 | `ok` |
-| 503 | `redis unreachable` |
+| 503 | `redis unavailable` / `redis unreachable` |
 
 ---
 
@@ -253,7 +253,7 @@ GET /ws/v1?token=<JWT>
 | `participant-left` | `{ id }` | 成员离开通知 |
 | `offer` / `answer` / `trickle` | 同上 | 转发对端消息 |
 | `chat` | `{ text }` | 转发文本消息 |
-| `mute-request` | `{ target? }` | 对端或系统请求静音 |
+| `mute` / `unmute` | 转发控制消息 | 对端或系统静音控制 |
 | `error` | `{ code, message, details? }` | 错误 |
 
 **示例 — joined**：
@@ -309,7 +309,7 @@ GET /ws/v1?token=<JWT>
 |:--|:--|:--|
 | `SIGNAL_LOG_LEVEL` | `info` | 日志级别（debug / info / warn / error） |
 | `SIGNAL_ADDR` | `:8080` | 监听地址 |
-| `SIGNAL_JWT_SECRET` | — | **必填**，JWT 签名密钥 |
+| `SIGNAL_JWT_SECRET` | — | **必填**，JWT 签名密钥；未设置时服务启动失败 |
 | `SIGNAL_ADMIN_KEY` | — | 管理 API 密钥（可选） |
 | `SIGNAL_ALLOWED_ORIGINS` | — | CORS Origin 白名单（逗号分隔） |
 | `SIGNAL_MAX_MSG_BYTES` | `65536` | WebSocket 单消息上限（字节） |
@@ -319,4 +319,4 @@ GET /ws/v1?token=<JWT>
 | `SIGNAL_REDIS_ENABLED` | `false` | 启用 Redis 多节点扩展 |
 | `SIGNAL_REDIS_ADDR` | `localhost:6379` | Redis 地址 |
 
-完整列表见 [`env.example`](https://github.com/LessUp/aurora-signal/blob/main/env.example)
+完整列表见 [`env.example`](https://github.com/LessUp/aurora-signal/blob/master/env.example)

@@ -58,7 +58,7 @@ flowchart LR
 
 ```bash
 # 1. 设置 JWT Secret（必填）
-export SIGNAL_JWT_SECRET="dev-secret-change"
+export SIGNAL_JWT_SECRET="change-me-to-a-long-random-secret"
 
 # 2. 启动服务
 make run            # 或 go run ./cmd/server
@@ -68,7 +68,7 @@ make run            # 或 go run ./cmd/server
 ```
 
 {: .tip }
-使用 Docker Compose 可一键启动 Signal + Redis + coturn：`cd docker && docker compose up --build`
+使用 Docker Compose 可一键启动 Signal + Redis + coturn：先执行 `cp env.example docker/.env`，设置 `SIGNAL_JWT_SECRET`，再运行 `cd docker && docker compose up --build`
 
 ---
 

@@ -25,7 +25,7 @@ A production-ready WebRTC signaling server providing room management, session ne
 - **WebSocket Signaling** — offer / answer / trickle / chat / mute / leave; messages auto-stamped with `id` + `ts` + `version` for traceability
 - **Role-Based Access** — Three-tier roles: `viewer` (no media negotiation) / `speaker` / `moderator` (can remote-mute others)
 - **Security** — JWT authentication, constant-time Admin Key comparison, per-connection rate limiting, secure response headers
-- **Observability** — Prometheus metrics (`signal_*` namespace with `participants` gauge & `message_latency` histogram), structured JSON logging, request logger middleware, Request-ID tracing
+- **Observability** — Prometheus metrics (`signal_*` namespace with `participants` gauge & `message_latency_seconds` histogram), structured JSON logging, request logger middleware, Request-ID tracing
 - **High Availability** — Redis Pub/Sub multi-node scaling, graceful shutdown (including WebSocket drain), panic recovery middleware
 - **Web Demo** — Exponential-backoff reconnect, color-coded connection status, Enter-to-send chat
 - **Build** — `ldflags` version injection, OCI labels, Distroless runtime image
@@ -34,7 +34,7 @@ A production-ready WebRTC signaling server providing room management, session ne
 
 ```bash
 # 1. Set JWT secret
-export SIGNAL_JWT_SECRET="dev-secret-change"
+export SIGNAL_JWT_SECRET="change-me-to-a-long-random-secret"
 
 # 2. Run the server
 make run
@@ -70,7 +70,7 @@ All settings are configured via environment variables:
 |----------|---------|-------------|
 | `SIGNAL_LOG_LEVEL` | `info` | Log level (`debug` / `info` / `warn` / `error`) |
 | `SIGNAL_ADDR` | `:8080` | Listen address |
-| `SIGNAL_JWT_SECRET` | — | JWT signing key (**required**) |
+| `SIGNAL_JWT_SECRET` | — | JWT signing key (**required**, server startup fails if unset) |
 | `SIGNAL_ADMIN_KEY` | — | Admin API key (optional) |
 | `SIGNAL_ALLOWED_ORIGINS` | — | Allowed origins (comma-separated) |
 | `SIGNAL_MAX_MSG_BYTES` | `65536` | Max WebSocket message size (bytes) |
@@ -89,6 +89,8 @@ Full list → [`env.example`](env.example)
 docker build --build-arg VERSION=v0.2.0 -t lessup/signaling:v0.2.0 .
 
 # Local orchestration (Redis + coturn included)
+cp env.example docker/.env
+# then edit docker/.env and set SIGNAL_JWT_SECRET
 cd docker && docker compose up --build
 ```
 
