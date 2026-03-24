@@ -9,6 +9,7 @@ import (
 	"runtime/debug"
 	"time"
 
+	"github.com/LessUp/aurora-signal/internal/config"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -48,11 +49,14 @@ func (s *Server) requestIDMiddleware(next http.Handler) http.Handler {
 func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
-		if origin != "" && s.checkOrigin(r) {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Admin-Key, X-Request-ID")
-			w.Header().Set("Access-Control-Max-Age", "86400")
+		if origin != "" {
+			allowed := len(s.cfg.Server.AllowedOrigins) == 0 || config.IsOriginAllowed(s.cfg.Server.AllowedOrigins, origin)
+			if allowed {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Admin-Key, X-Request-ID")
+				w.Header().Set("Access-Control-Max-Age", "86400")
+			}
 		}
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)

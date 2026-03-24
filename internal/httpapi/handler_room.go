@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/LessUp/aurora-signal/internal/config"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -30,14 +31,14 @@ func (s *Server) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleGetRoom(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	rm, ok := s.rooms.GetRoom(id)
+	roomID, participants, ok := s.rooms.RoomInfo(id)
 	if !ok {
 		writeError(w, http.StatusNotFound, 2004, "room_not_found", nil)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"id":           rm.ID,
-		"participants": rm.ParticipantCount(),
+		"id":           roomID,
+		"participants": participants,
 	})
 }
 
@@ -64,9 +65,12 @@ func (s *Server) handleJoinToken(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, 2001, "missing userId", nil)
 		return
 	}
-	if req.TTLSeconds <= 0 {
-		req.TTLSeconds = 900
+	req.Role = config.NormalizeRole(req.Role)
+	if req.Role == "" {
+		writeError(w, http.StatusBadRequest, 2001, "invalid role", nil)
+		return
 	}
+	req.TTLSeconds = config.ValidateJoinTokenTTL(req.TTLSeconds)
 	roomID := chi.URLParam(r, "id")
 	tok, err := s.auth.SignJoinToken(req.UserID, roomID, req.Role, time.Duration(req.TTLSeconds)*time.Second, req.DisplayName)
 	if err != nil {

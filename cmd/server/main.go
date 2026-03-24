@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -18,6 +20,10 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		os.Exit(runHealthcheck())
+	}
+
 	cfg := config.Load()
 	warnings, err := cfg.Validate()
 	if err != nil {
@@ -38,7 +44,10 @@ func main() {
 	mgr.StartCleanup(30*time.Second, 5*time.Minute)
 	jwtAuth := auth.NewJWT(cfg.Security.JWTSecret)
 
-	httpSrv := httpapi.NewServer(cfg, log, mgr, jwtAuth)
+	httpSrv, err := httpapi.NewServer(cfg, log, mgr, jwtAuth)
+	if err != nil {
+		log.Fatal("http server initialization failed", zap.Error(err))
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -60,4 +69,23 @@ func main() {
 		log.Error("graceful shutdown failed", zap.Error(err))
 	}
 	log.Info("server stopped")
+}
+
+func runHealthcheck() int {
+	cfg := config.Load()
+	addr := cfg.Server.Addr
+	if strings.HasPrefix(addr, ":") {
+		addr = "127.0.0.1" + addr
+	}
+	url := "http://" + addr + "/healthz"
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return 1
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return 1
+	}
+	return 0
 }

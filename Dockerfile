@@ -36,6 +36,6 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /out/signal-server /app/signal-server
 COPY web /app/web
 ENV SIGNAL_ADDR=:8080
-EXPOSE 8080 9090
+EXPOSE 8080
 USER nonroot:nonroot
 ENTRYPOINT ["/app/signal-server"]

@@ -10,7 +10,12 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
-	if s.bus != nil {
+	if s.cfg.Redis.Enabled {
+		if s.bus == nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte("redis unavailable"))
+			return
+		}
 		if err := s.bus.Ping(); err != nil {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			_, _ = w.Write([]byte("redis unreachable"))

@@ -105,7 +105,11 @@ func (b *Bus) UnsubscribeRoom(roomID string) error {
 		return nil
 	}
 	delete(b.subs, roomID)
-	return ps.Unsubscribe(b.ctx, b.channel(roomID))
+	if err := ps.Unsubscribe(b.ctx, b.channel(roomID)); err != nil {
+		_ = ps.Close()
+		return err
+	}
+	return ps.Close()
 }
 
 func (b *Bus) Close() error {

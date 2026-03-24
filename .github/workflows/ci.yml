@@ -36,6 +36,8 @@ jobs:
           cache: true
       - name: Tidy
         run: go mod tidy
+      - name: Check go.mod/go.sum clean
+        run: git diff --exit-code -- go.mod go.sum
       - name: Vet
         run: go vet ./...
       - name: Build
@@ -61,7 +63,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          version: v1.64.8
 
   docker:
     runs-on: ubuntu-latest
@@ -71,3 +73,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build Docker image
         run: docker build -t signaling-ci:check .
+      - name: Smoke test container
+        run: |
+          cid=$(docker run -d -e SIGNAL_JWT_SECRET=test-secret-for-ci -p 18080:8080 signaling-ci:check)
+          trap 'docker logs "$cid"; docker rm -f "$cid"' EXIT
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:18080/healthz >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1

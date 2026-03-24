@@ -74,7 +74,7 @@ func Load() *Config {
 			PongWaitSec:     getEnvInt("SIGNAL_WS_PONG_WAIT", 25),
 		},
 		Security: SecurityCfg{
-			JWTSecret: getEnv("SIGNAL_JWT_SECRET", "dev-secret-change"),
+			JWTSecret: getEnv("SIGNAL_JWT_SECRET", ""),
 			AdminKey:  getEnv("SIGNAL_ADMIN_KEY", ""),
 			RateLimit: RateLimitCfg{
 				WSPerConnRPS: getEnvInt("SIGNAL_WS_RPS", 20),
@@ -97,7 +97,6 @@ func Load() *Config {
 		},
 	}
 
-	// Optional TURN via env
 	if tu := strings.TrimSpace(os.Getenv("SIGNAL_TURN_URLS")); tu != "" {
 		cfg.Turn.TURN = append(cfg.Turn.TURN, ICEServer{
 			URLs:       split(tu),
@@ -109,15 +108,15 @@ func Load() *Config {
 	return cfg
 }
 
-// Validate checks for invalid configuration and returns warnings alongside any
-// hard error. Warnings are returned as a slice of human-readable strings so
-// the caller can log them with the appropriate logger.
 func (c *Config) Validate() (warnings []string, err error) {
-	if strings.TrimSpace(c.Security.JWTSecret) == "" || c.Security.JWTSecret == "dev-secret-change" {
-		warnings = append(warnings, "using default JWT secret — set SIGNAL_JWT_SECRET for production")
+	if strings.TrimSpace(c.Security.JWTSecret) == "" {
+		return warnings, fmt.Errorf("SIGNAL_JWT_SECRET is required")
 	}
 	if len(c.Security.JWTSecret) < 16 {
 		warnings = append(warnings, "JWT secret is shorter than 16 characters, consider using a stronger secret")
+	}
+	if c.Redis.Enabled && strings.TrimSpace(c.Redis.Addr) == "" {
+		return warnings, fmt.Errorf("SIGNAL_REDIS_ADDR is required when redis is enabled")
 	}
 	if c.Server.PongWaitSec <= c.Server.PingIntervalSec {
 		return warnings, fmt.Errorf("pong wait (%ds) must be greater than ping interval (%ds)", c.Server.PongWaitSec, c.Server.PingIntervalSec)
@@ -126,6 +125,46 @@ func (c *Config) Validate() (warnings []string, err error) {
 		return warnings, fmt.Errorf("max message bytes must be positive, got %d", c.Server.MaxMsgBytes)
 	}
 	return warnings, nil
+}
+
+func NormalizeRole(role string) string {
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "", "speaker":
+		return "speaker"
+	case "viewer":
+		return "viewer"
+	case "moderator":
+		return "moderator"
+	default:
+		return ""
+	}
+}
+
+func ValidateJoinTokenTTL(ttlSeconds int) int {
+	const (
+		defaultTTLSeconds = 900
+		maxTTLSeconds     = 3600
+	)
+	if ttlSeconds <= 0 {
+		return defaultTTLSeconds
+	}
+	if ttlSeconds > maxTTLSeconds {
+		return maxTTLSeconds
+	}
+	return ttlSeconds
+}
+
+func IsOriginAllowed(allowed []string, origin string) bool {
+	origin = strings.TrimSpace(origin)
+	if origin == "" {
+		return false
+	}
+	for _, candidate := range allowed {
+		if strings.EqualFold(strings.TrimSpace(candidate), origin) {
+			return true
+		}
+	}
+	return false
 }
 
 func split(s string) []string {

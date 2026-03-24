@@ -42,8 +42,6 @@ func NewManager(log *zap.Logger) *Manager {
 	return &Manager{rooms: make(map[string]*Room), log: log, stopCh: make(chan struct{})}
 }
 
-// StartCleanup runs a background goroutine that removes empty rooms
-// older than the given TTL. Call Stop() to terminate.
 func (m *Manager) StartCleanup(interval, emptyTTL time.Duration) {
 	go func() {
 		ticker := time.NewTicker(interval)
@@ -83,7 +81,7 @@ func (m *Manager) CreateRoom(id string, maxParticipants ...int) (*Room, error) {
 		id = uuid.NewString()
 	}
 	if existing, ok := m.rooms[id]; ok {
-		return existing, nil
+		return cloneRoom(existing), nil
 	}
 	r := &Room{ID: id, CreatedAt: time.Now(), Participants: map[string]*Participant{}}
 	if len(maxParticipants) > 0 && maxParticipants[0] > 0 {
@@ -91,11 +89,9 @@ func (m *Manager) CreateRoom(id string, maxParticipants ...int) (*Room, error) {
 	}
 	m.rooms[id] = r
 	observability.RoomsGauge.Set(float64(len(m.rooms)))
-	return r, nil
+	return cloneRoom(r), nil
 }
 
-// ParticipantCount returns the number of participants in the room.
-// Safe to call concurrently as a snapshot.
 func (r *Room) ParticipantCount() int {
 	return len(r.Participants)
 }
@@ -104,7 +100,20 @@ func (m *Manager) GetRoom(id string) (*Room, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	r, ok := m.rooms[id]
-	return r, ok
+	if !ok {
+		return nil, false
+	}
+	return cloneRoom(r), true
+}
+
+func (m *Manager) RoomInfo(id string) (roomID string, participants int, ok bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	r, ok := m.rooms[id]
+	if !ok {
+		return "", 0, false
+	}
+	return r.ID, len(r.Participants), true
 }
 
 func (m *Manager) Join(roomID string, p *Participant) ([]*Participant, error) {
@@ -125,7 +134,6 @@ func (m *Manager) Join(roomID string, p *Participant) ([]*Participant, error) {
 	if r.MaxParticipants > 0 && len(r.Participants) >= r.MaxParticipants {
 		return nil, errors.New("room is full")
 	}
-	// snapshot peers before adding
 	peers := make([]*Participant, 0, len(r.Participants))
 	for _, v := range r.Participants {
 		peers = append(peers, v)
@@ -198,7 +206,6 @@ func (m *Manager) Broadcast(roomID, excludePeerID string, env signaling.Envelope
 		m.mu.RUnlock()
 		return
 	}
-	// snapshot connections to release lock before network I/O
 	targets := make([]SafeConn, 0, len(r.Participants))
 	for id, p := range r.Participants {
 		if id == excludePeerID {
@@ -219,4 +226,17 @@ func (m *Manager) RoomCount() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return len(m.rooms)
+}
+
+func cloneRoom(r *Room) *Room {
+	clone := &Room{
+		ID:              r.ID,
+		MaxParticipants: r.MaxParticipants,
+		CreatedAt:       r.CreatedAt,
+		Participants:    make(map[string]*Participant, len(r.Participants)),
+	}
+	for id, p := range r.Participants {
+		clone.Participants[id] = p
+	}
+	return clone
 }

@@ -36,7 +36,7 @@ type Server struct {
 	activeConns map[*websocket.Conn]struct{}
 }
 
-func NewServer(cfg *config.Config, log *zap.Logger, rooms *room.Manager, authJWT *auth.JWT) *Server {
+func NewServer(cfg *config.Config, log *zap.Logger, rooms *room.Manager, authJWT *auth.JWT) (*Server, error) {
 	s := &Server{cfg: cfg, log: log, rooms: rooms, auth: authJWT, activeConns: make(map[*websocket.Conn]struct{})}
 	s.upgrader = websocket.Upgrader{
 		ReadBufferSize:  4096,
@@ -52,7 +52,9 @@ func NewServer(cfg *config.Config, log *zap.Logger, rooms *room.Manager, authJWT
 
 	mux.Get("/healthz", s.handleHealth)
 	mux.Get("/readyz", s.handleReady)
-	mux.Get("/metrics", promhttp.Handler().ServeHTTP)
+	if s.cfg.Observability.PrometheusEnabled {
+		mux.Get("/metrics", promhttp.Handler().ServeHTTP)
+	}
 
 	mux.Get("/api/v1/ice-servers", s.handleICEServers)
 	mux.Post("/api/v1/rooms", s.handleCreateRoom)
@@ -78,13 +80,12 @@ func NewServer(cfg *config.Config, log *zap.Logger, rooms *room.Manager, authJWT
 	s.roomSubs = make(map[string]int)
 	if cfg.Redis.Enabled {
 		bus, err := redispubsub.New(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB, s.nodeID, s.log)
-		if err == nil {
-			s.bus = bus
-		} else {
-			s.log.Warn("redis disabled due to init failure", zap.Error(err))
+		if err != nil {
+			return nil, err
 		}
+		s.bus = bus
 	}
-	return s
+	return s, nil
 }
 
 func (s *Server) Start() error {
@@ -124,15 +125,9 @@ func (s *Server) untrackConn(c *websocket.Conn) {
 }
 
 func (s *Server) checkOrigin(r *http.Request) bool {
-	allowed := s.cfg.Server.AllowedOrigins
-	if len(allowed) == 0 {
-		return true
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if len(s.cfg.Server.AllowedOrigins) == 0 {
+		return origin == ""
 	}
-	origin := r.Header.Get("Origin")
-	for _, o := range allowed {
-		if strings.EqualFold(strings.TrimSpace(o), origin) {
-			return true
-		}
-	}
-	return false
+	return config.IsOriginAllowed(s.cfg.Server.AllowedOrigins, origin)
 }

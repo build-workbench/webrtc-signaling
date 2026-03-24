@@ -21,7 +21,11 @@ build:
 	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/server
 
 run:
-	SIGNAL_JWT_SECRET=$${SIGNAL_JWT_SECRET:-dev-secret-change} $(GO) run ./cmd/server
+	@if [ -z "$${SIGNAL_JWT_SECRET}" ]; then \
+		echo "SIGNAL_JWT_SECRET is required"; \
+		exit 1; \
+	fi
+	$(GO) run ./cmd/server
 
 test:
 	$(GO) test $(PKG)
@@ -37,7 +41,7 @@ vet:
 	$(GO) vet $(PKG)
 
 lint:
-	golangci-lint run || echo "Install golangci-lint for linting"
+	golangci-lint run
 
 fmt:
 	$(GO) fmt $(PKG)

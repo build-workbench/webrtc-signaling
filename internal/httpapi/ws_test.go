@@ -37,7 +37,10 @@ func testServer(t *testing.T) (*Server, *httptest.Server) {
 	log, _ := zap.NewDevelopment()
 	mgr := room.NewManager(log)
 	jwtAuth := auth.NewJWT(cfg.Security.JWTSecret)
-	srv := NewServer(cfg, log, mgr, jwtAuth)
+	srv, err := NewServer(cfg, log, mgr, jwtAuth)
+	if err != nil {
+		t.Fatalf("new server: %v", err)
+	}
 	ts := httptest.NewServer(srv.httpSrv.Handler)
 	return srv, ts
 }
@@ -103,7 +106,10 @@ func testServerWithAdmin(t *testing.T, adminKey string) (*Server, *httptest.Serv
 	log, _ := zap.NewDevelopment()
 	mgr := room.NewManager(log)
 	jwtAuth := auth.NewJWT(cfg.Security.JWTSecret)
-	srv := NewServer(cfg, log, mgr, jwtAuth)
+	srv, err := NewServer(cfg, log, mgr, jwtAuth)
+	if err != nil {
+		t.Fatalf("new server: %v", err)
+	}
 	ts := httptest.NewServer(srv.httpSrv.Handler)
 	return srv, ts
 }
@@ -118,6 +124,34 @@ func readEnvelope(t *testing.T, conn *websocket.Conn) signaling.Envelope {
 		t.Fatalf("readJSON: %v", err)
 	}
 	return env
+}
+
+func TestJoinCannotEscalateRole(t *testing.T) {
+	_, ts := testServer(t)
+	defer ts.Close()
+
+	tok := getTokenWithRole(t, ts, "room-role", "u1", "Viewer", "viewer", nil)
+	conn := wsConnect(t, ts, tok)
+	defer conn.Close()
+
+	_ = conn.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-role", Role: "moderator", DisplayName: "Viewer"})})
+	env := readEnvelope(t, conn)
+	if env.Type != signaling.TypeJoined {
+		t.Fatalf("expected joined, got %s", env.Type)
+	}
+
+	var payload map[string]any
+	_ = json.Unmarshal(env.Payload, &payload)
+	self := payload["self"].(map[string]any)
+	if self["role"] != "viewer" {
+		t.Fatalf("expected role viewer from token claims, got %v", self["role"])
+	}
+
+	_ = conn.WriteJSON(signaling.Envelope{Type: signaling.TypeOffer, To: "someone", Payload: mustJSON(map[string]any{"sdp": "v=0"})})
+	errEnv := readEnvelope(t, conn)
+	if errEnv.Type != signaling.TypeError {
+		t.Fatalf("expected error, got %s", errEnv.Type)
+	}
 }
 
 func TestWSJoinAndLeave(t *testing.T) {
@@ -316,6 +350,63 @@ func TestWSErrorCases(t *testing.T) {
 			t.Fatalf("expected error, got %s", env.Type)
 		}
 	})
+}
+
+func TestMetricsDisabledHidesRoute(t *testing.T) {
+	cfg := &config.Config{
+		LogLevel:      "error",
+		Server:        config.ServerCfg{Addr: ":0", MaxMsgBytes: 65536, PingIntervalSec: 30, PongWaitSec: 60},
+		Security:      config.SecurityCfg{JWTSecret: "test-secret-for-integration", RateLimit: config.RateLimitCfg{WSPerConnRPS: 100, WSBurst: 200}},
+		Observability: config.ObservabilityCfg{PrometheusEnabled: false},
+	}
+	log, _ := zap.NewDevelopment()
+	mgr := room.NewManager(log)
+	jwtAuth := auth.NewJWT(cfg.Security.JWTSecret)
+	srv, err := NewServer(cfg, log, mgr, jwtAuth)
+	if err != nil {
+		t.Fatalf("new server: %v", err)
+	}
+	ts := httptest.NewServer(srv.httpSrv.Handler)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/metrics")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 when metrics disabled, got %d", resp.StatusCode)
+	}
+}
+
+func TestWebSocketOriginRestricted(t *testing.T) {
+	cfg := &config.Config{
+		LogLevel: "error",
+		Server:   config.ServerCfg{Addr: ":0", MaxMsgBytes: 65536, PingIntervalSec: 30, PongWaitSec: 60, AllowedOrigins: []string{"https://allowed.example"}},
+		Security: config.SecurityCfg{JWTSecret: "test-secret-for-integration", RateLimit: config.RateLimitCfg{WSPerConnRPS: 100, WSBurst: 200}},
+		Turn:     config.TurnCfg{STUN: []string{"stun:stun.l.google.com:19302"}},
+	}
+	log, _ := zap.NewDevelopment()
+	mgr := room.NewManager(log)
+	jwtAuth := auth.NewJWT(cfg.Security.JWTSecret)
+	srv, err := NewServer(cfg, log, mgr, jwtAuth)
+	if err != nil {
+		t.Fatalf("new server: %v", err)
+	}
+	ts := httptest.NewServer(srv.httpSrv.Handler)
+	defer ts.Close()
+
+	tok := getToken(t, ts, "room-origin", "u1", "Alice")
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/ws/v1?token=" + tok
+	header := http.Header{}
+	header.Set("Origin", "https://evil.example")
+	_, resp, err := websocket.DefaultDialer.Dial(wsURL, header)
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	}
+	if err == nil {
+		t.Fatal("expected websocket dial to fail for disallowed origin")
+	}
 }
 
 func TestRESTEndpoints(t *testing.T) {
