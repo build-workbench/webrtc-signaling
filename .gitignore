@@ -27,3 +27,6 @@ docs/_site/
 docs/.jekyll-cache/
 docs/.jekyll-metadata
 docs/Gemfile.lock
+
+# Claude Code local state
+.claude/
