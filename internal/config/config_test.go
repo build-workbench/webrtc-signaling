@@ -101,22 +101,6 @@ func TestValidateRedisEnabledRequiresAddr(t *testing.T) {
 	}
 }
 
-func TestNormalizeRole(t *testing.T) {
-	cases := map[string]string{
-		"":           "speaker",
-		"speaker":    "speaker",
-		"Speaker":    "speaker",
-		" viewer ":   "viewer",
-		"moderator":  "moderator",
-		"not-a-role": "",
-	}
-	for input, want := range cases {
-		if got := NormalizeRole(input); got != want {
-			t.Fatalf("NormalizeRole(%q) = %q, want %q", input, got, want)
-		}
-	}
-}
-
 func TestValidateJoinTokenTTL(t *testing.T) {
 	if got := ValidateJoinTokenTTL(0); got != 900 {
 		t.Fatalf("expected default ttl 900, got %d", got)

@@ -10,6 +10,7 @@ import (
 
 	"github.com/LessUp/aurora-signal/internal/auth"
 	"github.com/LessUp/aurora-signal/internal/config"
+	"github.com/LessUp/aurora-signal/internal/observability"
 	"github.com/LessUp/aurora-signal/internal/room"
 	"github.com/LessUp/aurora-signal/internal/signaling"
 	"github.com/gorilla/websocket"
@@ -35,9 +36,10 @@ func testServer(t *testing.T) (*Server, *httptest.Server) {
 		},
 	}
 	log, _ := zap.NewDevelopment()
-	mgr := room.NewManager(log)
+	metrics := observability.NewNoopMetrics()
+	mgr := room.NewManager(log, metrics)
 	jwtAuth := auth.NewJWT(cfg.Security.JWTSecret)
-	srv, err := NewServer(cfg, log, mgr, jwtAuth)
+	srv, err := NewServer(cfg, log, mgr, jwtAuth, metrics)
 	if err != nil {
 		t.Fatalf("new server: %v", err)
 	}
@@ -104,9 +106,10 @@ func testServerWithAdmin(t *testing.T, adminKey string) (*Server, *httptest.Serv
 		},
 	}
 	log, _ := zap.NewDevelopment()
-	mgr := room.NewManager(log)
+	metrics := observability.NewNoopMetrics()
+	mgr := room.NewManager(log, metrics)
 	jwtAuth := auth.NewJWT(cfg.Security.JWTSecret)
-	srv, err := NewServer(cfg, log, mgr, jwtAuth)
+	srv, err := NewServer(cfg, log, mgr, jwtAuth, metrics)
 	if err != nil {
 		t.Fatalf("new server: %v", err)
 	}
@@ -360,9 +363,10 @@ func TestMetricsDisabledHidesRoute(t *testing.T) {
 		Observability: config.ObservabilityCfg{PrometheusEnabled: false},
 	}
 	log, _ := zap.NewDevelopment()
-	mgr := room.NewManager(log)
+	metrics := observability.NewNoopMetrics()
+	mgr := room.NewManager(log, metrics)
 	jwtAuth := auth.NewJWT(cfg.Security.JWTSecret)
-	srv, err := NewServer(cfg, log, mgr, jwtAuth)
+	srv, err := NewServer(cfg, log, mgr, jwtAuth, metrics)
 	if err != nil {
 		t.Fatalf("new server: %v", err)
 	}
@@ -387,9 +391,10 @@ func TestWebSocketOriginRestricted(t *testing.T) {
 		Turn:     config.TurnCfg{STUN: []string{"stun:stun.l.google.com:19302"}},
 	}
 	log, _ := zap.NewDevelopment()
-	mgr := room.NewManager(log)
+	metrics := observability.NewNoopMetrics()
+	mgr := room.NewManager(log, metrics)
 	jwtAuth := auth.NewJWT(cfg.Security.JWTSecret)
-	srv, err := NewServer(cfg, log, mgr, jwtAuth)
+	srv, err := NewServer(cfg, log, mgr, jwtAuth, metrics)
 	if err != nil {
 		t.Fatalf("new server: %v", err)
 	}

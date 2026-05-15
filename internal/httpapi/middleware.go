@@ -27,7 +27,7 @@ func (s *Server) recoveryMiddleware(next http.Handler) http.Handler {
 					zap.String("stack", string(debug.Stack())),
 					zap.String("path", r.URL.Path),
 				)
-				writeError(w, http.StatusInternalServerError, 3000, "internal_error", nil)
+				writeErrorWithMetrics(w, http.StatusInternalServerError, 3000, "internal_error", nil, s.metrics)
 			}
 		}()
 		next.ServeHTTP(w, r)

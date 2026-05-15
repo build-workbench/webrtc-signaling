@@ -127,19 +127,6 @@ func (c *Config) Validate() (warnings []string, err error) {
 	return warnings, nil
 }
 
-func NormalizeRole(role string) string {
-	switch strings.ToLower(strings.TrimSpace(role)) {
-	case "", "speaker":
-		return "speaker"
-	case "viewer":
-		return "viewer"
-	case "moderator":
-		return "moderator"
-	default:
-		return ""
-	}
-}
-
 func ValidateJoinTokenTTL(ttlSeconds int) int {
 	const (
 		defaultTTLSeconds = 900

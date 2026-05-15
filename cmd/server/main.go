@@ -13,11 +13,25 @@ import (
 	"github.com/LessUp/aurora-signal/internal/auth"
 	"github.com/LessUp/aurora-signal/internal/config"
 	"github.com/LessUp/aurora-signal/internal/httpapi"
-	"github.com/LessUp/aurora-signal/internal/logger"
+	"github.com/LessUp/aurora-signal/internal/observability"
 	"github.com/LessUp/aurora-signal/internal/room"
 	"github.com/LessUp/aurora-signal/internal/version"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
+
+func newLogger(level string) *zap.Logger {
+	cfg := zap.NewProductionConfig()
+	cfg.Encoding = "json"
+	if lvl, err := zapcore.ParseLevel(level); err == nil {
+		cfg.Level = zap.NewAtomicLevelAt(lvl)
+	}
+	l, err := cfg.Build()
+	if err != nil {
+		panic(err)
+	}
+	return l
+}
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
@@ -29,7 +43,7 @@ func main() {
 	if err != nil {
 		panic("config validation failed: " + err.Error())
 	}
-	log := logger.New(cfg.LogLevel)
+	log := newLogger(cfg.LogLevel)
 	defer func() { _ = log.Sync() }()
 	for _, w := range warnings {
 		log.Warn(w)
@@ -40,11 +54,18 @@ func main() {
 		zap.String("buildTime", version.BuildTime),
 	)
 
-	mgr := room.NewManager(log)
+	var metrics observability.Metrics
+	if cfg.Observability.PrometheusEnabled {
+		metrics = observability.NewPrometheusMetrics()
+	} else {
+		metrics = observability.NewNoopMetrics()
+	}
+
+	mgr := room.NewManager(log, metrics)
 	mgr.StartCleanup(30*time.Second, 5*time.Minute)
 	jwtAuth := auth.NewJWT(cfg.Security.JWTSecret)
 
-	httpSrv, err := httpapi.NewServer(cfg, log, mgr, jwtAuth)
+	httpSrv, err := httpapi.NewServer(cfg, log, mgr, jwtAuth, metrics)
 	if err != nil {
 		log.Fatal("http server initialization failed", zap.Error(err))
 	}

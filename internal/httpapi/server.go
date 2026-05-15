@@ -10,6 +10,9 @@ import (
 
 	"github.com/LessUp/aurora-signal/internal/auth"
 	"github.com/LessUp/aurora-signal/internal/config"
+	"github.com/LessUp/aurora-signal/internal/observability"
+	"github.com/LessUp/aurora-signal/internal/permission"
+	"github.com/LessUp/aurora-signal/internal/router"
 	"github.com/LessUp/aurora-signal/internal/room"
 	redispubsub "github.com/LessUp/aurora-signal/internal/store/redis"
 	"github.com/go-chi/chi/v5"
@@ -23,7 +26,10 @@ type Server struct {
 	cfg      *config.Config
 	log      *zap.Logger
 	rooms    *room.Manager
-	auth     *auth.JWT
+	auth     auth.Authenticator
+	policy   permission.Policy
+	metrics  observability.Metrics
+	router   *router.Router
 	upgrader websocket.Upgrader
 	httpSrv  *http.Server
 	nodeID   string
@@ -36,8 +42,19 @@ type Server struct {
 	activeConns map[*websocket.Conn]struct{}
 }
 
-func NewServer(cfg *config.Config, log *zap.Logger, rooms *room.Manager, authJWT *auth.JWT) (*Server, error) {
-	s := &Server{cfg: cfg, log: log, rooms: rooms, auth: authJWT, activeConns: make(map[*websocket.Conn]struct{})}
+func NewServer(cfg *config.Config, log *zap.Logger, rooms *room.Manager, authJWT auth.Authenticator, metrics observability.Metrics) (*Server, error) {
+	if metrics == nil {
+		metrics = observability.NewNoopMetrics()
+	}
+	s := &Server{
+		cfg:         cfg,
+		log:         log,
+		rooms:       rooms,
+		auth:        authJWT,
+		policy:      permission.NewPolicy(),
+		metrics:     metrics,
+		activeConns: make(map[*websocket.Conn]struct{}),
+	}
 	s.upgrader = websocket.Upgrader{
 		ReadBufferSize:  4096,
 		WriteBufferSize: 4096,
@@ -78,13 +95,18 @@ func NewServer(cfg *config.Config, log *zap.Logger, rooms *room.Manager, authJWT
 
 	s.nodeID = uuid.NewString()
 	s.roomSubs = make(map[string]int)
+
+	var bus router.Bus
 	if cfg.Redis.Enabled {
-		bus, err := redispubsub.New(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB, s.nodeID, s.log)
+		redisBus, err := redispubsub.New(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB, s.nodeID, s.log)
 		if err != nil {
 			return nil, err
 		}
-		s.bus = bus
+		s.bus = redisBus
+		bus = redisBus
 	}
+
+	s.router = router.New(rooms, bus, log, metrics)
 	return s, nil
 }
 

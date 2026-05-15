@@ -3,16 +3,13 @@ package httpapi
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/LessUp/aurora-signal/internal/config"
-	"github.com/LessUp/aurora-signal/internal/observability"
+	"github.com/LessUp/aurora-signal/internal/permission"
 	"github.com/LessUp/aurora-signal/internal/room"
 	"github.com/LessUp/aurora-signal/internal/signaling"
-	redispubsub "github.com/LessUp/aurora-signal/internal/store/redis"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
@@ -49,7 +46,7 @@ type wsSession struct {
 	conn        *websocket.Conn
 	peerID      string
 	userID      string
-	role        string
+	role        permission.Role
 	displayName string
 	roomID      string
 	limiter     *rate.Limiter
@@ -57,9 +54,9 @@ type wsSession struct {
 }
 
 func (s *Server) newSession(conn *websocket.Conn, userID, role, displayName string) *wsSession {
-	role = config.NormalizeRole(role)
-	if role == "" {
-		role = "speaker"
+	normalizedRole := s.policy.Normalize(role)
+	if normalizedRole == "" {
+		normalizedRole = permission.RoleSpeaker
 	}
 	return &wsSession{
 		srv:         s,
@@ -67,7 +64,7 @@ func (s *Server) newSession(conn *websocket.Conn, userID, role, displayName stri
 		conn:        conn,
 		peerID:      uuid.NewString(),
 		userID:      userID,
-		role:        role,
+		role:        normalizedRole,
 		displayName: strings.TrimSpace(displayName),
 		limiter:     rate.NewLimiter(rate.Limit(s.cfg.Security.RateLimit.WSPerConnRPS), s.cfg.Security.RateLimit.WSBurst),
 		done:        make(chan struct{}),
@@ -75,27 +72,19 @@ func (s *Server) newSession(conn *websocket.Conn, userID, role, displayName stri
 }
 
 func (sess *wsSession) sendError(code int, message string) {
-	observability.ErrorsTotal.WithLabelValues(strconv.Itoa(code)).Inc()
+	sess.srv.metrics.IncError(code)
 	_ = sess.ws.WriteJSON(signaling.Envelope{
 		Type:    signaling.TypeError,
 		Payload: mustJSON(signaling.ErrorPayload{Code: code, Message: message}),
 	})
 }
 
-func (sess *wsSession) effectiveRole() string {
-	role := config.NormalizeRole(sess.role)
-	if role == "" {
-		return "speaker"
-	}
-	return role
-}
-
 func (sess *wsSession) canSignalMedia() bool {
-	return sess.effectiveRole() != "viewer"
+	return sess.srv.policy.CanSignalMedia(sess.role)
 }
 
 func (sess *wsSession) canModerateOthers() bool {
-	return sess.effectiveRole() == "moderator"
+	return sess.srv.policy.CanModerateOthers(sess.role)
 }
 
 func (sess *wsSession) startPing(interval time.Duration) {
@@ -122,7 +111,7 @@ func (sess *wsSession) joinRoom(tokenRoomID string) ([]*room.Participant, bool) 
 		sess.sendError(2001, "first message must be join")
 		return nil, false
 	}
-	observability.MessagesInTotal.Inc()
+	sess.srv.metrics.IncMessagesIn()
 
 	var jp signaling.JoinPayload
 	if err := json.Unmarshal(env.Payload, &jp); err != nil {
@@ -137,7 +126,7 @@ func (sess *wsSession) joinRoom(tokenRoomID string) ([]*room.Participant, bool) 
 		sess.sendError(2003, "forbidden room")
 		return nil, false
 	}
-	if jp.Role != "" && config.NormalizeRole(jp.Role) == "" {
+	if jp.Role != "" && sess.srv.policy.Normalize(jp.Role) == "" {
 		sess.sendError(2001, "invalid role")
 		return nil, false
 	}
@@ -146,12 +135,12 @@ func (sess *wsSession) joinRoom(tokenRoomID string) ([]*room.Participant, bool) 
 	if strings.TrimSpace(jp.DisplayName) != "" {
 		sess.displayName = strings.TrimSpace(jp.DisplayName)
 	}
-	sess.role = sess.effectiveRole()
+	// Role was already normalized in newSession
 
 	p := &room.Participant{
 		ID:          sess.peerID,
 		UserID:      sess.userID,
-		Role:        sess.role,
+		Role:        string(sess.role),
 		DisplayName: sess.displayName,
 		Conn:        sess.ws,
 		JoinedAt:    time.Now(),
@@ -176,7 +165,7 @@ func (sess *wsSession) notifyJoined(peers []*room.Participant) {
 		RoomID: sess.roomID,
 		From:   sess.peerID,
 		Payload: mustJSON(map[string]any{
-			"self":       map[string]any{"id": sess.peerID, "role": sess.role, "displayName": sess.displayName},
+			"self":       map[string]any{"id": sess.peerID, "role": string(sess.role), "displayName": sess.displayName},
 			"peers":      peersInfo,
 			"iceServers": sess.srv.buildICEServers(),
 		}),
@@ -187,7 +176,7 @@ func (sess *wsSession) notifyJoined(peers []*room.Participant) {
 		RoomID: sess.roomID,
 		From:   sess.peerID,
 		Payload: mustJSON(map[string]any{
-			"id": sess.peerID, "role": sess.role, "displayName": sess.displayName,
+			"id": sess.peerID, "role": string(sess.role), "displayName": sess.displayName,
 		}),
 	})
 }
@@ -198,7 +187,7 @@ func (sess *wsSession) readLoop() {
 		if err := sess.conn.ReadJSON(&msg); err != nil {
 			return
 		}
-		observability.MessagesInTotal.Inc()
+		sess.srv.metrics.IncMessagesIn()
 
 		if !sess.limiter.Allow() {
 			sess.sendError(2007, "rate_limited")
@@ -215,17 +204,17 @@ func (sess *wsSession) readLoop() {
 				sess.sendError(2001, "missing to")
 				continue
 			}
-			sess.srv.routeMessage(sess.roomID, sess.peerID, msg)
+			sess.srv.router.Route(sess.roomID, sess.peerID, msg)
 
 		case signaling.TypeChat:
-			sess.srv.routeMessage(sess.roomID, sess.peerID, msg)
+			sess.srv.router.Route(sess.roomID, sess.peerID, msg)
 
 		case signaling.TypeMute, signaling.TypeUnmute:
 			if msg.To != "" && msg.To != sess.peerID && !sess.canModerateOthers() {
 				sess.sendError(2003, "only moderators can mute/unmute others")
 				continue
 			}
-			sess.srv.routeMessage(sess.roomID, sess.peerID, msg)
+			sess.srv.router.Route(sess.roomID, sess.peerID, msg)
 
 		case signaling.TypeLeave:
 			return
@@ -260,38 +249,6 @@ func (sess *wsSession) cleanup() {
 	sess.srv.unsubscribeRoomIfLast(sess.roomID)
 }
 
-func (s *Server) routeMessage(roomID, peerID string, msg signaling.Envelope) {
-	now := time.Now()
-	msg.Version = "v1"
-	msg.RoomID = roomID
-	msg.From = peerID
-	msg.Ts = now.UnixMilli()
-	if msg.ID == "" {
-		msg.ID = uuid.NewString()
-	}
-	defer func() {
-		observability.MessageLatency.Observe(time.Since(now).Seconds())
-	}()
-
-	if msg.To != "" {
-		if err := s.rooms.SendTo(roomID, msg.To, msg); err != nil {
-			if s.bus != nil {
-				if pubErr := s.bus.PublishDirect(roomID, msg.To, msg); pubErr != nil {
-					s.log.Warn("redis direct publish failed", zap.Error(pubErr), zap.String("roomID", roomID), zap.String("toPeer", msg.To))
-				}
-			}
-		}
-		return
-	}
-
-	s.rooms.Broadcast(roomID, peerID, msg)
-	if s.bus != nil {
-		if err := s.bus.PublishBroadcast(roomID, peerID, msg); err != nil {
-			s.log.Warn("redis broadcast publish failed", zap.Error(err), zap.String("roomID", roomID))
-		}
-	}
-}
-
 func (s *Server) subscribeRoomRedis(roomID string) {
 	if s.bus == nil {
 		return
@@ -299,14 +256,7 @@ func (s *Server) subscribeRoomRedis(roomID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.roomSubs[roomID] == 0 {
-		if err := s.bus.SubscribeRoom(roomID, func(wm redispubsub.WireMessage) {
-			switch wm.Kind {
-			case redispubsub.KindDirect:
-				_ = s.rooms.SendTo(wm.RoomID, wm.ToPeer, wm.Envelope)
-			case redispubsub.KindBroadcast:
-				s.rooms.Broadcast(wm.RoomID, wm.ExcludePeer, wm.Envelope)
-			}
-		}); err != nil {
+		if err := s.bus.SubscribeRoom(roomID, s.router.HandleWireMessage); err != nil {
 			s.log.Warn("redis subscribe failed", zap.Error(err), zap.String("roomID", roomID))
 			return
 		}
@@ -365,8 +315,8 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		return conn.SetReadDeadline(time.Now().Add(pongWait))
 	})
 
-	observability.WSConnections.Inc()
-	defer observability.WSConnections.Dec()
+	s.metrics.IncConnections()
+	defer s.metrics.DecConnections()
 
 	sess.startPing(pingInterval)
 

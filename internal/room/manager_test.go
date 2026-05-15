@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LessUp/aurora-signal/internal/observability"
 	"github.com/LessUp/aurora-signal/internal/signaling"
 	"go.uber.org/zap"
 )
@@ -15,7 +16,7 @@ func (m *mockConn) WriteJSON(v any) error { atomic.AddInt64(&m.n, 1); return nil
 
 func TestRoomLifecycle(t *testing.T) {
 	log, _ := zap.NewDevelopment()
-	mgr := NewManager(log)
+	mgr := NewManager(log, observability.NewNoopMetrics())
 	r, err := mgr.CreateRoom("")
 	if err != nil {
 		t.Fatal(err)

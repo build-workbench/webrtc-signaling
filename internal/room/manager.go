@@ -11,10 +11,12 @@ import (
 	"go.uber.org/zap"
 )
 
+// SafeConn is the interface for a thread-safe WebSocket connection.
 type SafeConn interface {
 	WriteJSON(v any) error
 }
 
+// Participant represents a user in a room.
 type Participant struct {
 	ID          string
 	UserID      string
@@ -24,6 +26,7 @@ type Participant struct {
 	JoinedAt    time.Time
 }
 
+// Room represents a signaling room.
 type Room struct {
 	ID              string
 	MaxParticipants int
@@ -31,15 +34,26 @@ type Room struct {
 	Participants    map[string]*Participant
 }
 
+// Manager manages rooms and participants.
 type Manager struct {
-	mu     sync.RWMutex
-	rooms  map[string]*Room
-	log    *zap.Logger
-	stopCh chan struct{}
+	mu      sync.RWMutex
+	rooms   map[string]*Room
+	log     *zap.Logger
+	stopCh  chan struct{}
+	metrics observability.Metrics
 }
 
-func NewManager(log *zap.Logger) *Manager {
-	return &Manager{rooms: make(map[string]*Room), log: log, stopCh: make(chan struct{})}
+// NewManager creates a new room manager.
+func NewManager(log *zap.Logger, metrics observability.Metrics) *Manager {
+	if metrics == nil {
+		metrics = observability.NewNoopMetrics()
+	}
+	return &Manager{
+		rooms:   make(map[string]*Room),
+		log:     log,
+		stopCh:  make(chan struct{}),
+		metrics: metrics,
+	}
 }
 
 func (m *Manager) StartCleanup(interval, emptyTTL time.Duration) {
@@ -71,7 +85,7 @@ func (m *Manager) cleanupEmptyRooms(ttl time.Duration) {
 			m.log.Debug("cleaned up empty room", zap.String("roomID", id))
 		}
 	}
-	observability.RoomsGauge.Set(float64(len(m.rooms)))
+	m.metrics.SetRooms(len(m.rooms))
 }
 
 func (m *Manager) CreateRoom(id string, maxParticipants ...int) (*Room, error) {
@@ -88,7 +102,7 @@ func (m *Manager) CreateRoom(id string, maxParticipants ...int) (*Room, error) {
 		r.MaxParticipants = maxParticipants[0]
 	}
 	m.rooms[id] = r
-	observability.RoomsGauge.Set(float64(len(m.rooms)))
+	m.metrics.SetRooms(len(m.rooms))
 	return cloneRoom(r), nil
 }
 
@@ -129,7 +143,7 @@ func (m *Manager) Join(roomID string, p *Participant) ([]*Participant, error) {
 		}
 		r = &Room{ID: roomID, CreatedAt: time.Now(), Participants: map[string]*Participant{}}
 		m.rooms[roomID] = r
-		observability.RoomsGauge.Set(float64(len(m.rooms)))
+		m.metrics.SetRooms(len(m.rooms))
 	}
 	if r.MaxParticipants > 0 && len(r.Participants) >= r.MaxParticipants {
 		return nil, errors.New("room is full")
@@ -139,7 +153,7 @@ func (m *Manager) Join(roomID string, p *Participant) ([]*Participant, error) {
 		peers = append(peers, v)
 	}
 	r.Participants[p.ID] = p
-	observability.ParticipantsGauge.Inc()
+	m.metrics.IncParticipants()
 	return peers, nil
 }
 
@@ -155,10 +169,10 @@ func (m *Manager) Leave(roomID, peerID string) (*Participant, bool) {
 		return nil, false
 	}
 	delete(r.Participants, peerID)
-	observability.ParticipantsGauge.Dec()
+	m.metrics.DecParticipants()
 	if len(r.Participants) == 0 {
 		delete(m.rooms, roomID)
-		observability.RoomsGauge.Set(float64(len(m.rooms)))
+		m.metrics.SetRooms(len(m.rooms))
 	}
 	return p, true
 }
@@ -195,7 +209,7 @@ func (m *Manager) SendTo(roomID, toPeerID string, env signaling.Envelope) error 
 	if err := conn.WriteJSON(env); err != nil {
 		return err
 	}
-	observability.MessagesOutTotal.Inc()
+	m.metrics.IncMessagesOut()
 	return nil
 }
 
@@ -217,7 +231,7 @@ func (m *Manager) Broadcast(roomID, excludePeerID string, env signaling.Envelope
 
 	for _, conn := range targets {
 		if err := conn.WriteJSON(env); err == nil {
-			observability.MessagesOutTotal.Inc()
+			m.metrics.IncMessagesOut()
 		}
 	}
 }
