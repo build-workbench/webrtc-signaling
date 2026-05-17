@@ -21,7 +21,7 @@ description: "开发环境、分支规范与提交流程"
 
 ## 开始之前
 
-1. 先在 [Issue](https://github.com/LessUp/aurora-signal/issues) 讨论需求或 Bug
+1. 先在 [Issue](https://github.com/AICL-Lab/aurora-signal/issues) 讨论需求或 Bug
 2. Fork 仓库并创建特性分支
 3. 确保本地通过所有检查后再提交 PR
 
@@ -31,7 +31,7 @@ description: "开发环境、分支规范与提交流程"
 
 | 工具 | 版本 |
 |:--|:--|
-| Go | ≥ 1.23 |
+| Go | ≥ 1.22 |
 | Docker（可选） | ≥ 24 |
 | golangci-lint（可选） | ≥ 1.55 |
 
@@ -93,4 +93,4 @@ test: add k6 concurrent room test
 
 ## 行为准则
 
-请遵守 [CODE_OF_CONDUCT.md](https://github.com/LessUp/aurora-signal/blob/main/CODE_OF_CONDUCT.md)。
+请遵守 [CODE_OF_CONDUCT.md](https://github.com/AICL-Lab/aurora-signal/blob/main/CODE_OF_CONDUCT.md)。

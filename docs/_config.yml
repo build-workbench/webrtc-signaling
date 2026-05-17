@@ -3,20 +3,20 @@ description: WebRTC 信令服务 — 房间管理、会话协商与基础控制
 remote_theme: just-the-docs/just-the-docs@v0.10.0
 lang: zh-CN
 
-url: "https://lessup.github.io"
+url: "https://aicl-lab.github.io"
 baseurl: "/aurora-signal"
 
 # --- Navigation -----------------------------------------------------------
 aux_links:
   "GitHub":
-    - "https://github.com/LessUp/aurora-signal"
+    - "https://github.com/AICL-Lab/aurora-signal"
 aux_links_new_tab: true
 nav_sort: case_insensitive
 
 # --- Edit on GitHub --------------------------------------------------------
 gh_edit_link: true
 gh_edit_link_text: "在 GitHub 上编辑此页"
-gh_edit_repository: "https://github.com/LessUp/aurora-signal"
+gh_edit_repository: "https://github.com/AICL-Lab/aurora-signal"
 gh_edit_source: docs
 gh_edit_branch: "master"
 gh_edit_view_mode: "edit"
@@ -33,7 +33,7 @@ color_scheme: light
 
 last_edit_time_format: "%Y-%m-%d %H:%M"
 
-footer_content: "Copyright &copy; 2025-2026 LessUp &mdash; <a href=\"https://github.com/LessUp/aurora-signal/blob/master/LICENSE\">MIT License</a>"
+footer_content: "Copyright &copy; 2025-2026 LessUp &mdash; <a href=\"https://github.com/AICL-Lab/aurora-signal/blob/master/LICENSE\">MIT License</a>"
 
 # --- Mermaid ---------------------------------------------------------------
 mermaid:

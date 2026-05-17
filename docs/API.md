@@ -319,4 +319,4 @@ GET /ws/v1?token=<JWT>
 | `SIGNAL_REDIS_ENABLED` | `false` | 启用 Redis 多节点扩展 |
 | `SIGNAL_REDIS_ADDR` | `localhost:6379` | Redis 地址 |
 
-完整列表见 [`env.example`](https://github.com/LessUp/aurora-signal/blob/master/env.example)
+完整列表见 [`env.example`](https://github.com/AICL-Lab/aurora-signal/blob/master/env.example)

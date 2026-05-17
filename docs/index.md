@@ -8,7 +8,7 @@ description: "Aurora Signal — 基于 Go 的 WebRTC 信令服务，房间管理
 # Aurora Signal
 {: .fs-9 }
 
-基于 Go 1.23 的 **WebRTC 信令服务**，提供房间管理、会话协商（SDP / ICE）与基础控制。
+基于 Go 1.22 的 **WebRTC 信令服务**，提供房间管理、会话协商（SDP / ICE）与基础控制。
 {: .fs-6 .fw-300 }
 
 [快速开始](#快速开始){: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 }
@@ -106,8 +106,8 @@ make run            # 或 go run ./cmd/server
 
 | 技术 | 版本 | 用途 |
 |:--|:--|:--|
-| Go | 1.23 | 服务端主语言 |
-| gorilla/websocket | 1.5 | WebSocket 实现 |
+| Go | 1.22 | 服务端主语言 |
+| gorilla/websocket | 1.5.1 | WebSocket 实现 |
 | Redis | 7+ | Pub/Sub 多节点扩展 |
 | Prometheus | — | 指标采集 |
 | Docker | — | 容器化部署 |
@@ -117,4 +117,4 @@ make run            # 或 go run ./cmd/server
 
 ## 许可证
 
-[MIT License](https://github.com/LessUp/aurora-signal/blob/main/LICENSE) &copy; 2025-2026 LessUp
+[MIT License](https://github.com/AICL-Lab/aurora-signal/blob/main/LICENSE) &copy; 2025-2026 LessUp

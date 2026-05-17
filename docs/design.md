@@ -185,12 +185,9 @@ sequenceDiagram
 | 2002 | `unauthorized` | 未认证或 Token 过期 |
 | 2003 | `forbidden` | 权限不足 |
 | 2004 | `room_not_found` | 房间不存在 |
-| 2005 | `member_not_found` | 目标成员不存在 |
 | 2006 | `unsupported_type` | 不支持的消息类型 |
 | 2007 | `rate_limited` | 超出速率限制 |
-| 2008 | `room_full` | 房间已满 |
-| 2009 | `version_mismatch` | 协议版本不匹配 |
-| 2010 | `bad_state` | 状态异常 |
+| 2010 | `bad_state` | 状态异常（含 room is full 等场景） |
 | 3000 | `internal_error` | 服务端内部错误 |
 
 完整请求/响应示例参阅 [API 参考]({% link API.md %})。
