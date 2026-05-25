@@ -49,8 +49,7 @@ description: "REST 端点与 WebSocket 信令协议完整说明"
 ```json
 {
   "id": "my-room-001",
-  "maxParticipants": 8,
-  "metadata": { "title": "Stand-up" }
+  "maxParticipants": 8
 }
 ```
 
@@ -217,8 +216,8 @@ GET /ws/v1?token=<JWT>
 | `offer` | `{ to, sdp }` | SDP Offer |
 | `answer` | `{ to, sdp }` | SDP Answer |
 | `trickle` | `{ to, candidate }` | ICE 候选 |
-| `chat` | `{ to?, text }` | 文本消息（`to` 省略则广播） |
-| `mute` / `unmute` | `{ target? }` | 静音控制（需权限） |
+| `chat` | `{ text }` | 文本消息；`to` 放在 envelope 顶层，省略则广播 |
+| `mute` / `unmute` | `{}` | 静音控制；如需定向控制，目标 peer 放在 envelope 顶层 `to` |
 | `leave` | — | 离开房间 |
 
 **示例 — join**：

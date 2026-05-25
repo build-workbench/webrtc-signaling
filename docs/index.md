@@ -96,7 +96,6 @@ make run            # 或 go run ./cmd/server
 |:--|:--|
 | [API 参考]({% link API.md %}) | REST 端点与 WebSocket 信令协议完整说明 |
 | [系统设计]({% link design.md %}) | 架构、数据模型、协议定义、部署与里程碑 |
-| [变更日志]({% link changelog.md %}) | 版本发布历史 |
 | [贡献指南]({% link contributing.md %}) | 开发环境、分支规范与提交流程 |
 | [安全策略]({% link security.md %}) | 漏洞报告与处理流程 |
 

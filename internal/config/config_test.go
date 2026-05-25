@@ -14,9 +14,6 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.LogLevel != "info" {
 		t.Fatalf("expected default log level info, got %s", cfg.LogLevel)
 	}
-	if cfg.Observability.MetricsAddr != ":9090" {
-		t.Fatalf("expected default metrics addr :9090, got %s", cfg.Observability.MetricsAddr)
-	}
 }
 
 func TestLoadFromEnv(t *testing.T) {

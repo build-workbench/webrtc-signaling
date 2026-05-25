@@ -10,7 +10,6 @@
 
 # Documentation & metadata
 docs/
-changelog/
 *.md
 LICENSE
 

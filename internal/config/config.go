@@ -44,7 +44,6 @@ type RedisCfg struct {
 
 type ObservabilityCfg struct {
 	PrometheusEnabled bool   `json:"prometheusEnabled"`
-	MetricsAddr       string `json:"metricsAddr"`
 }
 
 type TurnCfg struct {
@@ -93,7 +92,6 @@ func Load() *Config {
 		},
 		Observability: ObservabilityCfg{
 			PrometheusEnabled: getEnvBool("SIGNAL_PROM_ENABLED", true),
-			MetricsAddr:       getEnv("SIGNAL_METRICS_ADDR", ":9090"),
 		},
 	}
 

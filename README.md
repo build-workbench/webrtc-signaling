@@ -4,7 +4,7 @@
 
 **Lightweight WebRTC signaling server built with Go**
 
-[![Go](https://img.shields.io/badge/Go-1.23-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![Go](https://img.shields.io/badge/Go-1.22-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/LessUp/aurora-signal/actions/workflows/ci.yml/badge.svg)](https://github.com/LessUp/aurora-signal/actions/workflows/ci.yml)
 [![Pages](https://github.com/LessUp/aurora-signal/actions/workflows/pages.yml/badge.svg)](https://github.com/LessUp/aurora-signal/actions/workflows/pages.yml)
@@ -113,8 +113,9 @@ Load testing: `k6 run k6/ws-smoke.js`
 
 - [API Reference](https://lessup.github.io/aurora-signal/API.html)
 - [Design Document](https://lessup.github.io/aurora-signal/design.html)
-- [Changelog](https://lessup.github.io/aurora-signal/changelog.html)
 - [Contributing](https://lessup.github.io/aurora-signal/contributing.html)
+
+Release history → [`CHANGELOG.md`](CHANGELOG.md)
 
 ## 📄 License
 

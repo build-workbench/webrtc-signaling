@@ -26,7 +26,6 @@ paths:
               properties:
                 id: { type: string, description: Room ID (auto-generated UUID if omitted) }
                 maxParticipants: { type: integer, minimum: 1, description: Max participants cap }
-                metadata: { type: object, description: Arbitrary metadata }
       responses:
         '201':
           description: Created

@@ -4,7 +4,7 @@
 
 **轻量级 WebRTC 信令服务，基于 Go 构建**
 
-[![Go](https://img.shields.io/badge/Go-1.23-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![Go](https://img.shields.io/badge/Go-1.22-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/LessUp/aurora-signal/actions/workflows/ci.yml/badge.svg)](https://github.com/LessUp/aurora-signal/actions/workflows/ci.yml)
 [![Pages](https://github.com/LessUp/aurora-signal/actions/workflows/pages.yml/badge.svg)](https://github.com/LessUp/aurora-signal/actions/workflows/pages.yml)
@@ -113,8 +113,9 @@ make build         # 编译（含版本注入）
 
 - [API 参考](https://lessup.github.io/aurora-signal/API.html)
 - [系统设计](https://lessup.github.io/aurora-signal/design.html)
-- [变更日志](https://lessup.github.io/aurora-signal/changelog.html)
 - [贡献指南](https://lessup.github.io/aurora-signal/contributing.html)
+
+版本历史 → [`CHANGELOG.md`](CHANGELOG.md)
 
 ## 📄 许可证
 

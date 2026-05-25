@@ -6,7 +6,6 @@ on:
     paths-ignore:
       - '**.md'
       - 'docs/**'
-      - 'changelog/**'
       - '_config.yml'
       - 'LICENSE'
   pull_request:
@@ -14,7 +13,6 @@ on:
     paths-ignore:
       - '**.md'
       - 'docs/**'
-      - 'changelog/**'
       - '_config.yml'
       - 'LICENSE'
 

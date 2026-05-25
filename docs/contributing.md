@@ -1,12 +1,14 @@
 ---
 title: 贡献指南
 layout: default
-nav_order: 5
-description: "开发环境、分支规范与提交流程"
+nav_order: 4
+description: "最小化的本地开发、测试与提交流程"
 ---
 
 # 贡献指南
 {: .no_toc }
+
+Aurora Signal 当前只保留最小、直接的开发流程。先保证代码和文档与真实运行时一致，再考虑扩展。
 
 <details open markdown="block">
   <summary>目录</summary>
@@ -17,80 +19,76 @@ description: "开发环境、分支规范与提交流程"
 
 ---
 
-欢迎贡献！请遵循以下流程。
-
-## 开始之前
-
-1. 先在 [Issue](https://github.com/AICL-Lab/aurora-signal/issues) 讨论需求或 Bug
-2. Fork 仓库并创建特性分支
-3. 确保本地通过所有检查后再提交 PR
-
-## 开发环境
-
-**前置要求**：
+## 1. 环境要求
 
 | 工具 | 版本 |
 |:--|:--|
-| Go | ≥ 1.22 |
-| Docker（可选） | ≥ 24 |
-| golangci-lint（可选） | ≥ 1.55 |
+| Go | `>= 1.22` |
+| Docker（可选） | `>= 24` |
+| golangci-lint（可选） | 当前仓库 CI 所用版本兼容即可 |
 
-**快速启动**：
+---
+
+## 2. 常用命令
 
 ```bash
-git clone https://github.com/<your-fork>/aurora-signal.git
-cd aurora-signal
-cp env.example .env
-export SIGNAL_JWT_SECRET="dev-secret"
+make build
 make run
+make test
+make test-race
+make test-cover
+make vet
+make lint
+make fmt
+make docker-build
+make compose-up
+make compose-down
 ```
 
-## Make 命令
+本地最小检查：
 
 ```bash
-make build          # 编译（含版本注入、-trimpath）
-make run            # 运行服务
-make test           # 单元测试
-make test-race      # 竞态检测
-make test-cover     # 覆盖率报告
-make vet            # go vet
-make lint           # golangci-lint
-make fmt            # go fmt
-make clean          # 清理构建产物
-make docker-build   # 构建 Docker 镜像
-make compose-up     # 启动本地编排（Signal + Redis + coturn）
-make compose-down   # 停止本地编排
+go mod tidy
+go test ./...
 ```
 
-## 分支命名
+---
+
+## 3. 分支与提交
+
+推荐分支前缀：
 
 | 前缀 | 用途 | 示例 |
 |:--|:--|:--|
-| `feat/` | 新功能 | `feat/room-metadata` |
-| `fix/` | Bug 修复 | `fix/ws-ping-timeout` |
-| `docs/` | 文档 | `docs/api-examples` |
-| `refactor/` | 重构 | `refactor/room-store` |
-| `test/` | 测试 | `test/k6-concurrent` |
+| `fix/` | 缺陷修复 | `fix/ws-ping-timeout` |
+| `refactor/` | 重构清理 | `refactor/httpapi-simplify` |
+| `docs/` | 文档更新 | `docs/api-reference` |
+| `test/` | 测试补充 | `test/ws-edge-cases` |
 
-## 提交规范
+推荐使用 Conventional Commits：
 
-推荐使用 [Conventional Commits](https://www.conventionalcommits.org/)：
-
-```
-feat: add room metadata support
-fix: correct WebSocket ping interval
-docs: update API reference examples
-test: add k6 concurrent room test
+```text
+fix: correct websocket timeout handling
+refactor: remove unused config surface
+docs: align API reference with runtime
+test: add ws moderation coverage
 ```
 
-## PR 检查清单
+---
 
-- [ ] 代码通过 `make vet` 与 `make lint`
-- [ ] 所有测试通过 `make test-race`
-- [ ] 新功能附带单元测试
-- [ ] PR 描述包含变更说明与影响范围
-- [ ] 如涉及 API 变更，同步更新 `docs/API.md`
+## 4. 提交前检查
 
-## 行为准则
+- 运行 `make test`
+- 如修改了并发或连接逻辑，额外运行 `make test-race`
+- 如修改了 Go 代码，运行 `make vet`
+- 如修改了 API 或行为，更新 `README` / `docs/API.md` / `docs/design.md`
 
-请遵守 [CODE_OF_CONDUCT.md](https://github.com/AICL-Lab/aurora-signal/blob/main/CODE_OF_CONDUCT.md)。
+---
+
+## 5. 提交原则
+
+- 不保留未启用、未落地的功能分支
+- 不让文档领先于代码实现
+- 不引入新的 AI 控制框架、计划系统或冗余规范层
+
+如无必要，不新增抽象层。

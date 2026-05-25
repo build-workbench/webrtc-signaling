@@ -22,7 +22,6 @@ type JWT struct {
 type JoinClaims struct {
 	Rid         string `json:"rid,omitempty"`
 	Role        string `json:"role,omitempty"`
-	Tenant      string `json:"tenant,omitempty"`
 	DisplayName string `json:"name,omitempty"`
 	jwt.RegisteredClaims
 }

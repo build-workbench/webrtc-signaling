@@ -1,5 +1,13 @@
 # 变更日志
 
+本项目仅保留仓库根目录下的 `CHANGELOG.md` 作为唯一变更历史来源。
+
+## Unreleased
+
+### Changed
+- 清理仓库内 AI 控制残留文件，移除多余的 changelog 目录与 GitHub Pages changelog 页面。
+- 文档与 OpenAPI 回归到当前真实运行时能力，不再保留未实现的元数据、租户与未来协议扩展描述。
+
 ## v0.3.0 — Final Optimization
 
 ### Fixes
@@ -16,10 +24,12 @@
 - **.editorconfig** — 新增 `Makefile`（tab 缩进）、YAML、Markdown 规则
 - **.gitignore** — 新增 `coverage.html`
 - **CI** — 新增独立 `lint` job（golangci-lint-action）、Go module 缓存、覆盖率产物上传、Docker 构建依赖 lint 通过
+- **GitHub Pages** — Pages 构建改为仅检出 `docs/`，补齐 `configure-pages`，减少无效构建
+- **Workflow** — 统一 Actions 权限、并发策略与路径过滤
 - **OpenAPI** — 标题更名为 Aurora Signal API，版本升至 0.2.0，添加 license/description/operationId/tags，修正 healthz/readyz/metrics 的 server 路径，新增 Error schema 与 components/responses
+- **依赖清理** — 补全 `go.sum` 缺失依赖记录，恢复 `go test ./...` 可执行性
 
 ### Documentation
-- **docs/changelog.md** — 补充 v0.2.0 完整变更内容
 - **docs/security.md** — 更新支持版本表（v0.2.x 当前支持，v0.1.x 仅安全补丁）
 - **docs/contributing.md** — 补充 `make fmt` / `make clean` 命令说明
 - **README** — 新增 Go Report Card 徽章（中英文双 README）
