@@ -174,7 +174,7 @@ sequenceDiagram
 - WebSocket 首包必须为 `join`
 - 每连接速率限制默认 `20 RPS / burst 40`
 - 默认消息上限为 `64 KiB`
-- Origin 校验遵循 `SIGNAL_ALLOWED_ORIGINS`
+- Origin 校验遵循 `SIGNAL_ALLOWED_ORIGINS`；未配置时接受任意浏览器 Origin，配置后仅允许精确匹配
 
 ---
 

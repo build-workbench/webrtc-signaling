@@ -72,7 +72,7 @@ make run
 | `SIGNAL_ADDR` | `:8080` | 监听地址 |
 | `SIGNAL_JWT_SECRET` | — | JWT 签名密钥（**必填**，未设置时服务启动失败） |
 | `SIGNAL_ADMIN_KEY` | — | 管理 API 密钥（可选） |
-| `SIGNAL_ALLOWED_ORIGINS` | — | Origin 白名单（逗号分隔） |
+| `SIGNAL_ALLOWED_ORIGINS` | — | Origin 白名单（逗号分隔；留空时接受任意浏览器来源） |
 | `SIGNAL_MAX_MSG_BYTES` | `65536` | WebSocket 单消息大小上限（字节） |
 | `SIGNAL_WS_PING_INTERVAL` | `10` | 心跳间隔（秒） |
 | `SIGNAL_WS_PONG_WAIT` | `25` | 心跳超时（秒） |

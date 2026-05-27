@@ -45,7 +45,7 @@ description: "漏洞报告与处理流程"
 
 - **JWT Secret** — 使用高强度随机密钥，不少于 32 字符
 - **TLS** — 生产环境强制 HTTPS / WSS
-- **CORS** — 配置 `SIGNAL_ALLOWED_ORIGINS` 限制受信来源
+- **CORS / WebSocket Origin** — 生产环境建议配置 `SIGNAL_ALLOWED_ORIGINS` 限制受信来源；未配置时默认接受任意浏览器 Origin
 - **Admin Key** — 如启用管理 API，务必配置 `SIGNAL_ADMIN_KEY`
 - **速率限制** — 保持默认限流配置或根据负载调整
 - **Redis** — 使用密码认证，避免暴露到公网

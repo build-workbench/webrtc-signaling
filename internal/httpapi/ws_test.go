@@ -414,6 +414,30 @@ func TestWebSocketOriginRestricted(t *testing.T) {
 	}
 }
 
+func TestWebSocketOriginAllowedByDefault(t *testing.T) {
+	_, ts := testServer(t)
+	defer ts.Close()
+
+	tok := getToken(t, ts, "room-origin-default", "u1", "Alice")
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/ws/v1?token=" + tok
+	header := http.Header{}
+	header.Set("Origin", "https://demo.example")
+	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, header)
+	if resp != nil && resp.Body != nil {
+		resp.Body.Close()
+	}
+	if err != nil {
+		t.Fatalf("expected websocket dial to succeed with default origin policy, got %v", err)
+	}
+	defer conn.Close()
+
+	_ = conn.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-origin-default"})})
+	env := readEnvelope(t, conn)
+	if env.Type != signaling.TypeJoined {
+		t.Fatalf("expected joined, got %s", env.Type)
+	}
+}
+
 func TestRESTEndpoints(t *testing.T) {
 	_, ts := testServer(t)
 	defer ts.Close()
@@ -495,6 +519,20 @@ func TestRESTEndpoints(t *testing.T) {
 		t.Fatal("missing X-Request-ID header")
 	}
 	resp.Body.Close()
+}
+
+func TestCreateRoomRejectsNegativeMaxParticipants(t *testing.T) {
+	_, ts := testServer(t)
+	defer ts.Close()
+
+	resp, err := http.Post(ts.URL+"/api/v1/rooms", "application/json", strings.NewReader(`{"id":"bad-room","maxParticipants":-1}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
+	}
 }
 
 // ---------------------------------------------------------------------------

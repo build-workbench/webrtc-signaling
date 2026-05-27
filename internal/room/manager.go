@@ -34,6 +34,14 @@ type Room struct {
 	Participants    map[string]*Participant
 }
 
+var (
+	ErrInvalidMaxParticipants = errors.New("max participants must be zero or positive")
+	ErrInvalidParticipant     = errors.New("invalid participant")
+	ErrRoomFull               = errors.New("room is full")
+	ErrRoomNotFound           = errors.New("room not found")
+	ErrPeerNotFound           = errors.New("peer not found")
+)
+
 // Manager manages rooms and participants.
 type Manager struct {
 	mu      sync.RWMutex
@@ -98,8 +106,13 @@ func (m *Manager) CreateRoom(id string, maxParticipants ...int) (*Room, error) {
 		return cloneRoom(existing), nil
 	}
 	r := &Room{ID: id, CreatedAt: time.Now(), Participants: map[string]*Participant{}}
-	if len(maxParticipants) > 0 && maxParticipants[0] > 0 {
-		r.MaxParticipants = maxParticipants[0]
+	if len(maxParticipants) > 0 {
+		if maxParticipants[0] < 0 {
+			return nil, ErrInvalidMaxParticipants
+		}
+		if maxParticipants[0] > 0 {
+			r.MaxParticipants = maxParticipants[0]
+		}
 	}
 	m.rooms[id] = r
 	m.metrics.SetRooms(len(m.rooms))
@@ -132,7 +145,7 @@ func (m *Manager) RoomInfo(id string) (roomID string, participants int, ok bool)
 
 func (m *Manager) Join(roomID string, p *Participant) ([]*Participant, error) {
 	if p == nil || p.Conn == nil {
-		return nil, errors.New("invalid participant")
+		return nil, ErrInvalidParticipant
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -146,7 +159,7 @@ func (m *Manager) Join(roomID string, p *Participant) ([]*Participant, error) {
 		m.metrics.SetRooms(len(m.rooms))
 	}
 	if r.MaxParticipants > 0 && len(r.Participants) >= r.MaxParticipants {
-		return nil, errors.New("room is full")
+		return nil, ErrRoomFull
 	}
 	peers := make([]*Participant, 0, len(r.Participants))
 	for _, v := range r.Participants {
@@ -196,12 +209,12 @@ func (m *Manager) SendTo(roomID, toPeerID string, env signaling.Envelope) error 
 	r, ok := m.rooms[roomID]
 	if !ok {
 		m.mu.RUnlock()
-		return errors.New("room not found")
+		return ErrRoomNotFound
 	}
 	p, ok := r.Participants[toPeerID]
 	if !ok {
 		m.mu.RUnlock()
-		return errors.New("peer not found")
+		return ErrPeerNotFound
 	}
 	conn := p.Conn
 	m.mu.RUnlock()

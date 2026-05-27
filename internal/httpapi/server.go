@@ -12,8 +12,8 @@ import (
 	"github.com/LessUp/aurora-signal/internal/config"
 	"github.com/LessUp/aurora-signal/internal/observability"
 	"github.com/LessUp/aurora-signal/internal/permission"
-	"github.com/LessUp/aurora-signal/internal/router"
 	"github.com/LessUp/aurora-signal/internal/room"
+	"github.com/LessUp/aurora-signal/internal/router"
 	redispubsub "github.com/LessUp/aurora-signal/internal/store/redis"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -149,7 +149,7 @@ func (s *Server) untrackConn(c *websocket.Conn) {
 func (s *Server) checkOrigin(r *http.Request) bool {
 	origin := strings.TrimSpace(r.Header.Get("Origin"))
 	if len(s.cfg.Server.AllowedOrigins) == 0 {
-		return origin == ""
+		return true
 	}
 	return config.IsOriginAllowed(s.cfg.Server.AllowedOrigins, origin)
 }

@@ -8,6 +8,11 @@
 - 清理仓库内 AI 控制残留文件，移除多余的 changelog 目录与 GitHub Pages changelog 页面。
 - 文档与 OpenAPI 回归到当前真实运行时能力，不再保留未实现的元数据、租户与未来协议扩展描述。
 
+### Fixed
+- WebSocket Origin 校验与 HTTP CORS 语义对齐：未配置 `SIGNAL_ALLOWED_ORIGINS` 时默认接受浏览器连接，内置 Demo 可直接工作。
+- 房间创建现在会拒绝负数 `maxParticipants`，不再静默降级为“无限制”房间。
+- 定向消息仅在本地未命中目标 peer 时才回退到 Redis；本地连接写失败不再被错误地跨节点转发。
+
 ## v0.3.0 — Final Optimization
 
 ### Fixes

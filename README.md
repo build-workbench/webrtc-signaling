@@ -72,7 +72,7 @@ All settings are configured via environment variables:
 | `SIGNAL_ADDR` | `:8080` | Listen address |
 | `SIGNAL_JWT_SECRET` | — | JWT signing key (**required**, server startup fails if unset) |
 | `SIGNAL_ADMIN_KEY` | — | Admin API key (optional) |
-| `SIGNAL_ALLOWED_ORIGINS` | — | Allowed origins (comma-separated) |
+| `SIGNAL_ALLOWED_ORIGINS` | — | Allowed origins (comma-separated; leave empty to accept browser connections from any origin) |
 | `SIGNAL_MAX_MSG_BYTES` | `65536` | Max WebSocket message size (bytes) |
 | `SIGNAL_WS_PING_INTERVAL` | `10` | Ping interval (seconds) |
 | `SIGNAL_WS_PONG_WAIT` | `25` | Pong timeout (seconds) |

@@ -1,9 +1,11 @@
 package router
 
 import (
+	"errors"
 	"time"
 
 	"github.com/LessUp/aurora-signal/internal/observability"
+	"github.com/LessUp/aurora-signal/internal/room"
 	"github.com/LessUp/aurora-signal/internal/signaling"
 	redispubsub "github.com/LessUp/aurora-signal/internal/store/redis"
 	"github.com/google/uuid"
@@ -68,14 +70,21 @@ func (r *Router) Route(roomID, peerID string, msg signaling.Envelope) {
 
 func (r *Router) routeDirect(roomID string, msg signaling.Envelope) {
 	if err := r.sender.SendTo(roomID, msg.To, msg); err != nil {
-		if r.bus != nil {
-			if pubErr := r.bus.PublishDirect(roomID, msg.To, msg); pubErr != nil {
-				r.log.Warn("redis direct publish failed",
-					zap.Error(pubErr),
-					zap.String("roomID", roomID),
-					zap.String("toPeer", msg.To))
+		if shouldPublishDirectFallback(err) {
+			if r.bus != nil {
+				if pubErr := r.bus.PublishDirect(roomID, msg.To, msg); pubErr != nil {
+					r.log.Warn("redis direct publish failed",
+						zap.Error(pubErr),
+						zap.String("roomID", roomID),
+						zap.String("toPeer", msg.To))
+				}
 			}
+			return
 		}
+		r.log.Warn("local direct delivery failed",
+			zap.Error(err),
+			zap.String("roomID", roomID),
+			zap.String("toPeer", msg.To))
 	}
 }
 
@@ -94,8 +103,17 @@ func (r *Router) routeBroadcast(roomID, peerID string, msg signaling.Envelope) {
 func (r *Router) HandleWireMessage(wm redispubsub.WireMessage) {
 	switch wm.Kind {
 	case redispubsub.KindDirect:
-		_ = r.sender.SendTo(wm.RoomID, wm.ToPeer, wm.Envelope)
+		if err := r.sender.SendTo(wm.RoomID, wm.ToPeer, wm.Envelope); err != nil && !shouldPublishDirectFallback(err) {
+			r.log.Warn("redis direct delivery failed",
+				zap.Error(err),
+				zap.String("roomID", wm.RoomID),
+				zap.String("toPeer", wm.ToPeer))
+		}
 	case redispubsub.KindBroadcast:
 		r.sender.Broadcast(wm.RoomID, wm.ExcludePeer, wm.Envelope)
 	}
+}
+
+func shouldPublishDirectFallback(err error) bool {
+	return errors.Is(err, room.ErrRoomNotFound) || errors.Is(err, room.ErrPeerNotFound)
 }
