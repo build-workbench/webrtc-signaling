@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/LessUp/aurora-signal/internal/observability"
-	"github.com/LessUp/aurora-signal/internal/signaling"
 	"go.uber.org/zap"
 )
 
@@ -17,7 +16,7 @@ func (m *mockConn) WriteJSON(v any) error { atomic.AddInt64(&m.n, 1); return nil
 func TestRoomLifecycle(t *testing.T) {
 	log, _ := zap.NewDevelopment()
 	mgr := NewManager(log, observability.NewNoopMetrics())
-	r, err := mgr.CreateRoom("")
+	r, err := mgr.CreateRoom("", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,11 +43,11 @@ func TestRoomLifecycle(t *testing.T) {
 	}
 
 	// send direct
-	if err := mgr.SendTo(r.ID, "p2", signaling.Envelope{Type: signaling.TypeChat}); err != nil {
+	if err := mgr.SendTo(r.ID, "p2", Envelope{Type: TypeChat}); err != nil {
 		t.Fatal(err)
 	}
 	// broadcast
-	mgr.Broadcast(r.ID, "p2", signaling.Envelope{Type: signaling.TypeChat})
+	mgr.Broadcast(r.ID, "p2", Envelope{Type: TypeChat})
 
 	if _, ok := mgr.Leave(r.ID, "p1"); !ok {
 		t.Fatal("leave p1 failed")
@@ -56,7 +55,7 @@ func TestRoomLifecycle(t *testing.T) {
 	if _, ok := mgr.Leave(r.ID, "p2"); !ok {
 		t.Fatal("leave p2 failed")
 	}
-	if _, ok := mgr.GetRoom(r.ID); ok {
+	if _, _, ok := mgr.RoomInfo(r.ID); ok {
 		t.Fatal("room should be deleted when empty")
 	}
 }

@@ -12,7 +12,6 @@ import (
 	"github.com/LessUp/aurora-signal/internal/config"
 	"github.com/LessUp/aurora-signal/internal/observability"
 	"github.com/LessUp/aurora-signal/internal/room"
-	"github.com/LessUp/aurora-signal/internal/signaling"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 )
@@ -117,12 +116,12 @@ func testServerWithAdmin(t *testing.T, adminKey string) (*Server, *httptest.Serv
 	return srv, ts
 }
 
-func readEnvelope(t *testing.T, conn *websocket.Conn) signaling.Envelope {
+func readEnvelope(t *testing.T, conn *websocket.Conn) room.Envelope {
 	t.Helper()
 	if err := conn.SetReadDeadline(time.Now().Add(3 * time.Second)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
-	var env signaling.Envelope
+	var env room.Envelope
 	if err := conn.ReadJSON(&env); err != nil {
 		t.Fatalf("readJSON: %v", err)
 	}
@@ -137,9 +136,9 @@ func TestJoinCannotEscalateRole(t *testing.T) {
 	conn := wsConnect(t, ts, tok)
 	defer conn.Close()
 
-	_ = conn.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-role", Role: "moderator", DisplayName: "Viewer"})})
+	_ = conn.WriteJSON(room.Envelope{Type: room.TypeJoin, Payload: mustJSON(room.JoinPayload{RoomID: "room-role", Role: "moderator", DisplayName: "Viewer"})})
 	env := readEnvelope(t, conn)
-	if env.Type != signaling.TypeJoined {
+	if env.Type != room.TypeJoined {
 		t.Fatalf("expected joined, got %s", env.Type)
 	}
 
@@ -150,9 +149,9 @@ func TestJoinCannotEscalateRole(t *testing.T) {
 		t.Fatalf("expected role viewer from token claims, got %v", self["role"])
 	}
 
-	_ = conn.WriteJSON(signaling.Envelope{Type: signaling.TypeOffer, To: "someone", Payload: mustJSON(map[string]any{"sdp": "v=0"})})
+	_ = conn.WriteJSON(room.Envelope{Type: room.TypeOffer, To: "someone", Payload: mustJSON(map[string]any{"sdp": "v=0"})})
 	errEnv := readEnvelope(t, conn)
-	if errEnv.Type != signaling.TypeError {
+	if errEnv.Type != room.TypeError {
 		t.Fatalf("expected error, got %s", errEnv.Type)
 	}
 }
@@ -166,11 +165,11 @@ func TestWSJoinAndLeave(t *testing.T) {
 	defer conn.Close()
 
 	// send join
-	_ = conn.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-int", DisplayName: "Alice"})})
+	_ = conn.WriteJSON(room.Envelope{Type: room.TypeJoin, Payload: mustJSON(room.JoinPayload{RoomID: "room-int", DisplayName: "Alice"})})
 
 	// expect joined
 	env := readEnvelope(t, conn)
-	if env.Type != signaling.TypeJoined {
+	if env.Type != room.TypeJoined {
 		t.Fatalf("expected joined, got %s", env.Type)
 	}
 	var payload map[string]any
@@ -181,7 +180,7 @@ func TestWSJoinAndLeave(t *testing.T) {
 	}
 
 	// send leave
-	_ = conn.WriteJSON(signaling.Envelope{Type: signaling.TypeLeave})
+	_ = conn.WriteJSON(room.Envelope{Type: room.TypeLeave})
 }
 
 func TestWSTwoPeersSignaling(t *testing.T) {
@@ -195,9 +194,9 @@ func TestWSTwoPeersSignaling(t *testing.T) {
 	defer connA.Close()
 
 	// Alice joins
-	_ = connA.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-2p", DisplayName: "Alice"})})
+	_ = connA.WriteJSON(room.Envelope{Type: room.TypeJoin, Payload: mustJSON(room.JoinPayload{RoomID: "room-2p", DisplayName: "Alice"})})
 	envA := readEnvelope(t, connA)
-	if envA.Type != signaling.TypeJoined {
+	if envA.Type != room.TypeJoined {
 		t.Fatalf("A: expected joined, got %s", envA.Type)
 	}
 	var payloadA map[string]any
@@ -210,9 +209,9 @@ func TestWSTwoPeersSignaling(t *testing.T) {
 	// Bob joins
 	connB := wsConnect(t, ts, tokB)
 	defer connB.Close()
-	_ = connB.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-2p", DisplayName: "Bob"})})
+	_ = connB.WriteJSON(room.Envelope{Type: room.TypeJoin, Payload: mustJSON(room.JoinPayload{RoomID: "room-2p", DisplayName: "Bob"})})
 	envB := readEnvelope(t, connB)
-	if envB.Type != signaling.TypeJoined {
+	if envB.Type != room.TypeJoined {
 		t.Fatalf("B: expected joined, got %s", envB.Type)
 	}
 	var payloadB map[string]any
@@ -224,31 +223,31 @@ func TestWSTwoPeersSignaling(t *testing.T) {
 
 	// Alice receives participant-joined
 	envPJ := readEnvelope(t, connA)
-	if envPJ.Type != signaling.TypePeerJoin {
+	if envPJ.Type != room.TypePeerJoin {
 		t.Fatalf("A: expected participant-joined, got %s", envPJ.Type)
 	}
 	bobPeerID := envB.From
 
 	// Alice -> Bob: offer
-	_ = connA.WriteJSON(signaling.Envelope{Type: signaling.TypeOffer, To: bobPeerID, Payload: mustJSON(map[string]any{"sdp": "v=0 offer"})})
+	_ = connA.WriteJSON(room.Envelope{Type: room.TypeOffer, To: bobPeerID, Payload: mustJSON(map[string]any{"sdp": "v=0 offer"})})
 	envOffer := readEnvelope(t, connB)
-	if envOffer.Type != signaling.TypeOffer {
+	if envOffer.Type != room.TypeOffer {
 		t.Fatalf("B: expected offer, got %s", envOffer.Type)
 	}
 
 	alicePeerID := envA.From
 
 	// Bob -> Alice: answer
-	_ = connB.WriteJSON(signaling.Envelope{Type: signaling.TypeAnswer, To: alicePeerID, Payload: mustJSON(map[string]any{"sdp": "v=0 answer"})})
+	_ = connB.WriteJSON(room.Envelope{Type: room.TypeAnswer, To: alicePeerID, Payload: mustJSON(map[string]any{"sdp": "v=0 answer"})})
 	envAnswer := readEnvelope(t, connA)
-	if envAnswer.Type != signaling.TypeAnswer {
+	if envAnswer.Type != room.TypeAnswer {
 		t.Fatalf("A: expected answer, got %s", envAnswer.Type)
 	}
 
 	// Alice -> Bob: trickle
-	_ = connA.WriteJSON(signaling.Envelope{Type: signaling.TypeTrickle, To: bobPeerID, Payload: mustJSON(map[string]any{"candidate": "candidate:1"})})
+	_ = connA.WriteJSON(room.Envelope{Type: room.TypeTrickle, To: bobPeerID, Payload: mustJSON(map[string]any{"candidate": "candidate:1"})})
 	envTrickle := readEnvelope(t, connB)
-	if envTrickle.Type != signaling.TypeTrickle {
+	if envTrickle.Type != room.TypeTrickle {
 		t.Fatalf("B: expected trickle, got %s", envTrickle.Type)
 	}
 
@@ -261,9 +260,9 @@ func TestWSTwoPeersSignaling(t *testing.T) {
 	}
 
 	// Bob leaves, Alice should receive participant-left
-	_ = connB.WriteJSON(signaling.Envelope{Type: signaling.TypeLeave})
+	_ = connB.WriteJSON(room.Envelope{Type: room.TypeLeave})
 	envLeft := readEnvelope(t, connA)
-	if envLeft.Type != signaling.TypePeerLeave {
+	if envLeft.Type != room.TypePeerLeave {
 		t.Fatalf("A: expected participant-left, got %s", envLeft.Type)
 	}
 }
@@ -277,19 +276,19 @@ func TestWSChat(t *testing.T) {
 
 	connA := wsConnect(t, ts, tokA)
 	defer connA.Close()
-	_ = connA.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-chat"})})
+	_ = connA.WriteJSON(room.Envelope{Type: room.TypeJoin, Payload: mustJSON(room.JoinPayload{RoomID: "room-chat"})})
 	readEnvelope(t, connA) // joined
 
 	connB := wsConnect(t, ts, tokB)
 	defer connB.Close()
-	_ = connB.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-chat"})})
+	_ = connB.WriteJSON(room.Envelope{Type: room.TypeJoin, Payload: mustJSON(room.JoinPayload{RoomID: "room-chat"})})
 	readEnvelope(t, connB) // joined
 	readEnvelope(t, connA) // participant-joined
 
 	// broadcast chat
-	_ = connA.WriteJSON(signaling.Envelope{Type: signaling.TypeChat, Payload: mustJSON(map[string]any{"text": "hello"})})
+	_ = connA.WriteJSON(room.Envelope{Type: room.TypeChat, Payload: mustJSON(map[string]any{"text": "hello"})})
 	envChat := readEnvelope(t, connB)
-	if envChat.Type != signaling.TypeChat {
+	if envChat.Type != room.TypeChat {
 		t.Fatalf("B: expected chat, got %s", envChat.Type)
 	}
 	var chatPayload map[string]any
@@ -321,9 +320,9 @@ func TestWSErrorCases(t *testing.T) {
 		tok := getToken(t, ts, "room-err", "u1", "A")
 		conn := wsConnect(t, ts, tok)
 		defer conn.Close()
-		_ = conn.WriteJSON(signaling.Envelope{Type: signaling.TypeChat, Payload: mustJSON(map[string]any{"text": "hi"})})
+		_ = conn.WriteJSON(room.Envelope{Type: room.TypeChat, Payload: mustJSON(map[string]any{"text": "hi"})})
 		env := readEnvelope(t, conn)
-		if env.Type != signaling.TypeError {
+		if env.Type != room.TypeError {
 			t.Fatalf("expected error, got %s", env.Type)
 		}
 	})
@@ -332,11 +331,11 @@ func TestWSErrorCases(t *testing.T) {
 		tok := getToken(t, ts, "room-err2", "u1", "A")
 		conn := wsConnect(t, ts, tok)
 		defer conn.Close()
-		_ = conn.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-err2"})})
+		_ = conn.WriteJSON(room.Envelope{Type: room.TypeJoin, Payload: mustJSON(room.JoinPayload{RoomID: "room-err2"})})
 		readEnvelope(t, conn) // joined
-		_ = conn.WriteJSON(signaling.Envelope{Type: signaling.TypeOffer, Payload: mustJSON(map[string]any{"sdp": "v=0"})})
+		_ = conn.WriteJSON(room.Envelope{Type: room.TypeOffer, Payload: mustJSON(map[string]any{"sdp": "v=0"})})
 		env := readEnvelope(t, conn)
-		if env.Type != signaling.TypeError {
+		if env.Type != room.TypeError {
 			t.Fatalf("expected error, got %s", env.Type)
 		}
 	})
@@ -345,11 +344,11 @@ func TestWSErrorCases(t *testing.T) {
 		tok := getToken(t, ts, "room-err3", "u1", "A")
 		conn := wsConnect(t, ts, tok)
 		defer conn.Close()
-		_ = conn.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-err3"})})
+		_ = conn.WriteJSON(room.Envelope{Type: room.TypeJoin, Payload: mustJSON(room.JoinPayload{RoomID: "room-err3"})})
 		readEnvelope(t, conn) // joined
-		_ = conn.WriteJSON(signaling.Envelope{Type: "unknown_type"})
+		_ = conn.WriteJSON(room.Envelope{Type: "unknown_type"})
 		env := readEnvelope(t, conn)
-		if env.Type != signaling.TypeError {
+		if env.Type != room.TypeError {
 			t.Fatalf("expected error, got %s", env.Type)
 		}
 	})
@@ -431,9 +430,9 @@ func TestWebSocketOriginAllowedByDefault(t *testing.T) {
 	}
 	defer conn.Close()
 
-	_ = conn.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-origin-default"})})
+	_ = conn.WriteJSON(room.Envelope{Type: room.TypeJoin, Payload: mustJSON(room.JoinPayload{RoomID: "room-origin-default"})})
 	env := readEnvelope(t, conn)
-	if env.Type != signaling.TypeJoined {
+	if env.Type != room.TypeJoined {
 		t.Fatalf("expected joined, got %s", env.Type)
 	}
 }
@@ -596,9 +595,9 @@ func TestRoomFull(t *testing.T) {
 	tokA := getToken(t, ts, "room-full", "u1", "Alice")
 	connA := wsConnect(t, ts, tokA)
 	defer connA.Close()
-	_ = connA.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-full"})})
+	_ = connA.WriteJSON(room.Envelope{Type: room.TypeJoin, Payload: mustJSON(room.JoinPayload{RoomID: "room-full"})})
 	envA := readEnvelope(t, connA)
-	if envA.Type != signaling.TypeJoined {
+	if envA.Type != room.TypeJoined {
 		t.Fatalf("A: expected joined, got %s", envA.Type)
 	}
 
@@ -606,12 +605,12 @@ func TestRoomFull(t *testing.T) {
 	tokB := getToken(t, ts, "room-full", "u2", "Bob")
 	connB := wsConnect(t, ts, tokB)
 	defer connB.Close()
-	_ = connB.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-full"})})
+	_ = connB.WriteJSON(room.Envelope{Type: room.TypeJoin, Payload: mustJSON(room.JoinPayload{RoomID: "room-full"})})
 	envB := readEnvelope(t, connB)
-	if envB.Type != signaling.TypeError {
+	if envB.Type != room.TypeError {
 		t.Fatalf("B: expected error, got %s", envB.Type)
 	}
-	var errPayload signaling.ErrorPayload
+	var errPayload room.ErrorPayload
 	_ = json.Unmarshal(envB.Payload, &errPayload)
 	if errPayload.Code != 2010 {
 		t.Fatalf("expected error code 2010, got %d", errPayload.Code)
@@ -625,16 +624,16 @@ func TestViewerCannotSignal(t *testing.T) {
 	tok := getTokenWithRole(t, ts, "room-viewer", "u1", "Viewer", "viewer", nil)
 	conn := wsConnect(t, ts, tok)
 	defer conn.Close()
-	_ = conn.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-viewer"})})
+	_ = conn.WriteJSON(room.Envelope{Type: room.TypeJoin, Payload: mustJSON(room.JoinPayload{RoomID: "room-viewer"})})
 	readEnvelope(t, conn) // joined
 
 	// viewer tries to send an offer — should be rejected
-	_ = conn.WriteJSON(signaling.Envelope{Type: signaling.TypeOffer, To: "someone", Payload: mustJSON(map[string]any{"sdp": "v=0"})})
+	_ = conn.WriteJSON(room.Envelope{Type: room.TypeOffer, To: "someone", Payload: mustJSON(map[string]any{"sdp": "v=0"})})
 	env := readEnvelope(t, conn)
-	if env.Type != signaling.TypeError {
+	if env.Type != room.TypeError {
 		t.Fatalf("expected error, got %s", env.Type)
 	}
-	var errPayload signaling.ErrorPayload
+	var errPayload room.ErrorPayload
 	_ = json.Unmarshal(env.Payload, &errPayload)
 	if errPayload.Code != 2003 {
 		t.Fatalf("expected error code 2003, got %d", errPayload.Code)
@@ -649,9 +648,9 @@ func TestModeratorCanMuteOthers(t *testing.T) {
 	tokMod := getTokenWithRole(t, ts, "room-mod", "u1", "Mod", "moderator", nil)
 	connMod := wsConnect(t, ts, tokMod)
 	defer connMod.Close()
-	_ = connMod.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-mod"})})
+	_ = connMod.WriteJSON(room.Envelope{Type: room.TypeJoin, Payload: mustJSON(room.JoinPayload{RoomID: "room-mod"})})
 	envMod := readEnvelope(t, connMod)
-	if envMod.Type != signaling.TypeJoined {
+	if envMod.Type != room.TypeJoined {
 		t.Fatalf("Mod: expected joined, got %s", envMod.Type)
 	}
 
@@ -659,9 +658,9 @@ func TestModeratorCanMuteOthers(t *testing.T) {
 	tokSpk := getTokenWithRole(t, ts, "room-mod", "u2", "Speaker", "speaker", nil)
 	connSpk := wsConnect(t, ts, tokSpk)
 	defer connSpk.Close()
-	_ = connSpk.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-mod"})})
+	_ = connSpk.WriteJSON(room.Envelope{Type: room.TypeJoin, Payload: mustJSON(room.JoinPayload{RoomID: "room-mod"})})
 	envSpk := readEnvelope(t, connSpk)
-	if envSpk.Type != signaling.TypeJoined {
+	if envSpk.Type != room.TypeJoined {
 		t.Fatalf("Spk: expected joined, got %s", envSpk.Type)
 	}
 	readEnvelope(t, connMod) // participant-joined
@@ -669,21 +668,21 @@ func TestModeratorCanMuteOthers(t *testing.T) {
 	spkPeerID := envSpk.From
 
 	// Moderator mutes speaker — should succeed (routed to speaker)
-	_ = connMod.WriteJSON(signaling.Envelope{Type: signaling.TypeMute, To: spkPeerID, Payload: mustJSON(map[string]any{"track": "audio"})})
+	_ = connMod.WriteJSON(room.Envelope{Type: room.TypeMute, To: spkPeerID, Payload: mustJSON(map[string]any{"track": "audio"})})
 	envMute := readEnvelope(t, connSpk)
-	if envMute.Type != signaling.TypeMute {
+	if envMute.Type != room.TypeMute {
 		t.Fatalf("Spk: expected mute, got %s", envMute.Type)
 	}
 
 	modPeerID := envMod.From
 
 	// Speaker tries to mute moderator — should be rejected
-	_ = connSpk.WriteJSON(signaling.Envelope{Type: signaling.TypeMute, To: modPeerID, Payload: mustJSON(map[string]any{"track": "audio"})})
+	_ = connSpk.WriteJSON(room.Envelope{Type: room.TypeMute, To: modPeerID, Payload: mustJSON(map[string]any{"track": "audio"})})
 	envErr := readEnvelope(t, connSpk)
-	if envErr.Type != signaling.TypeError {
+	if envErr.Type != room.TypeError {
 		t.Fatalf("Spk: expected error, got %s", envErr.Type)
 	}
-	var errPayload signaling.ErrorPayload
+	var errPayload room.ErrorPayload
 	_ = json.Unmarshal(envErr.Payload, &errPayload)
 	if errPayload.Code != 2003 {
 		t.Fatalf("expected error code 2003, got %d", errPayload.Code)
@@ -703,13 +702,13 @@ func TestConcurrentJoinLeave(t *testing.T) {
 			tok := getToken(t, ts, "room-conc", uid, "P")
 			conn := wsConnect(t, ts, tok)
 			defer conn.Close()
-			_ = conn.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-conc"})})
+			_ = conn.WriteJSON(room.Envelope{Type: room.TypeJoin, Payload: mustJSON(room.JoinPayload{RoomID: "room-conc"})})
 			// read joined or error
 			_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
-			var env signaling.Envelope
+			var env room.Envelope
 			_ = conn.ReadJSON(&env)
 			// leave
-			_ = conn.WriteJSON(signaling.Envelope{Type: signaling.TypeLeave})
+			_ = conn.WriteJSON(room.Envelope{Type: room.TypeLeave})
 		}(i)
 	}
 	for i := 0; i < n; i++ {
@@ -726,26 +725,26 @@ func TestEnvelopeVersionPopulated(t *testing.T) {
 
 	connA := wsConnect(t, ts, tokA)
 	defer connA.Close()
-	_ = connA.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-ver"})})
+	_ = connA.WriteJSON(room.Envelope{Type: room.TypeJoin, Payload: mustJSON(room.JoinPayload{RoomID: "room-ver"})})
 	readEnvelope(t, connA) // joined
 
 	connB := wsConnect(t, ts, tokB)
 	defer connB.Close()
-	_ = connB.WriteJSON(signaling.Envelope{Type: signaling.TypeJoin, Payload: mustJSON(signaling.JoinPayload{RoomID: "room-ver"})})
+	_ = connB.WriteJSON(room.Envelope{Type: room.TypeJoin, Payload: mustJSON(room.JoinPayload{RoomID: "room-ver"})})
 	envB := readEnvelope(t, connB) // joined
 	readEnvelope(t, connA)         // participant-joined
 
 	bobPeerID := envB.From
 
 	// Alice sends chat
-	_ = connA.WriteJSON(signaling.Envelope{Type: signaling.TypeChat, Payload: mustJSON(map[string]any{"text": "hi"})})
+	_ = connA.WriteJSON(room.Envelope{Type: room.TypeChat, Payload: mustJSON(map[string]any{"text": "hi"})})
 	envChat := readEnvelope(t, connB)
 	if envChat.Version != "v1" {
 		t.Fatalf("expected version v1, got %q", envChat.Version)
 	}
 
 	// Alice sends offer to Bob
-	_ = connA.WriteJSON(signaling.Envelope{Type: signaling.TypeOffer, To: bobPeerID, Payload: mustJSON(map[string]any{"sdp": "v=0"})})
+	_ = connA.WriteJSON(room.Envelope{Type: room.TypeOffer, To: bobPeerID, Payload: mustJSON(map[string]any{"sdp": "v=0"})})
 	envOffer := readEnvelope(t, connB)
 	if envOffer.Version != "v1" {
 		t.Fatalf("expected version v1, got %q", envOffer.Version)

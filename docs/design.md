@@ -40,12 +40,10 @@ Aurora Signal 是一个 **Go 编写的 WebRTC 信令服务**。它只负责房�
 
 | 组件 | 职责 |
 |:--|:--|
-| `cmd/server` | 进程入口、配置加载、日志、优雅关闭 |
-| `internal/httpapi` | REST、WebSocket、Demo 静态文件 |
+| `cmd/server` | 进程入口、配置加载、日志、优雅关闭、版本变量 |
+| `internal/httpapi` | REST、WebSocket、Demo 静态文件、权限策略、消息路由、Redis 总线 |
 | `internal/auth` | JWT join token 签发与校验 |
-| `internal/room` | 房间与参与者内存状态 |
-| `internal/router` | 本地投递与 Redis 转发路由 |
-| `internal/store/redis` | 可选 Redis Pub/Sub 总线 |
+| `internal/room` | 房间与参与者内存状态、信令协议类型 |
 | `internal/observability` | Prometheus 指标 |
 | `web/` | 本地演示页面 |
 
@@ -137,7 +135,7 @@ sequenceDiagram
 
 ### WebSocket 信封
 
-所有路由消息都使用 `signaling.Envelope`：
+所有路由消息都使用 `room.Envelope`：
 
 ```json
 {
@@ -232,7 +230,7 @@ Prometheus 指标挂在主 HTTP 监听器的 `/metrics`，命名空间为 `signa
 |:--|:--|
 | 单节点 | 直接运行 Go 服务 |
 | Docker | 使用仓库内 `Dockerfile` |
-| Docker Compose | `signal + redis + coturn` 本地联调 |
+| Docker Compose | `signal + redis` 本地联调 |
 
 ---
 
@@ -245,9 +243,6 @@ internal/config/
 internal/httpapi/
 internal/observability/
 internal/room/
-internal/router/
-internal/signaling/
-internal/store/redis/
 web/
 ```
 

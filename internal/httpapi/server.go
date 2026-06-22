@@ -11,10 +11,7 @@ import (
 	"github.com/LessUp/aurora-signal/internal/auth"
 	"github.com/LessUp/aurora-signal/internal/config"
 	"github.com/LessUp/aurora-signal/internal/observability"
-	"github.com/LessUp/aurora-signal/internal/permission"
 	"github.com/LessUp/aurora-signal/internal/room"
-	"github.com/LessUp/aurora-signal/internal/router"
-	redispubsub "github.com/LessUp/aurora-signal/internal/store/redis"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -27,13 +24,15 @@ type Server struct {
 	log      *zap.Logger
 	rooms    *room.Manager
 	auth     auth.Authenticator
-	policy   permission.Policy
+	policy   Policy
 	metrics  observability.Metrics
-	router   *router.Router
+	router   *Router
 	upgrader websocket.Upgrader
 	httpSrv  *http.Server
+	bus      *RedisBus
 	nodeID   string
-	bus      *redispubsub.Bus
+
+	// roomSubs tracks per-room Redis subscription refcounts.
 	mu       sync.Mutex
 	roomSubs map[string]int
 
@@ -51,8 +50,10 @@ func NewServer(cfg *config.Config, log *zap.Logger, rooms *room.Manager, authJWT
 		log:         log,
 		rooms:       rooms,
 		auth:        authJWT,
-		policy:      permission.NewPolicy(),
+		policy:      NewPolicy(),
 		metrics:     metrics,
+		nodeID:      uuid.NewString(),
+		roomSubs:    make(map[string]int),
 		activeConns: make(map[*websocket.Conn]struct{}),
 	}
 	s.upgrader = websocket.Upgrader{
@@ -60,6 +61,18 @@ func NewServer(cfg *config.Config, log *zap.Logger, rooms *room.Manager, authJWT
 		WriteBufferSize: 4096,
 		CheckOrigin:     s.checkOrigin,
 	}
+
+	var bus Bus
+	if cfg.Redis.Enabled {
+		redisBus, err := NewRedisBus(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB, s.nodeID, s.log)
+		if err != nil {
+			return nil, err
+		}
+		s.bus = redisBus
+		bus = redisBus
+	}
+	s.router = NewRouter(rooms, bus, log, metrics)
+
 	mux := chi.NewRouter()
 	mux.Use(s.recoveryMiddleware)
 	mux.Use(s.requestIDMiddleware)
@@ -92,21 +105,6 @@ func NewServer(cfg *config.Config, log *zap.Logger, rooms *room.Manager, authJWT
 		ReadTimeout:  time.Duration(cfg.Server.ReadTimeoutSec) * time.Second,
 		WriteTimeout: time.Duration(cfg.Server.WriteTimeoutSec) * time.Second,
 	}
-
-	s.nodeID = uuid.NewString()
-	s.roomSubs = make(map[string]int)
-
-	var bus router.Bus
-	if cfg.Redis.Enabled {
-		redisBus, err := redispubsub.New(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB, s.nodeID, s.log)
-		if err != nil {
-			return nil, err
-		}
-		s.bus = redisBus
-		bus = redisBus
-	}
-
-	s.router = router.New(rooms, bus, log, metrics)
 	return s, nil
 }
 

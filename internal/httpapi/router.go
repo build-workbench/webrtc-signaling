@@ -1,4 +1,4 @@
-package router
+package httpapi
 
 import (
 	"errors"
@@ -6,22 +6,23 @@ import (
 
 	"github.com/LessUp/aurora-signal/internal/observability"
 	"github.com/LessUp/aurora-signal/internal/room"
-	"github.com/LessUp/aurora-signal/internal/signaling"
-	redispubsub "github.com/LessUp/aurora-signal/internal/store/redis"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
 // RoomSender defines the interface for sending messages within a room.
 type RoomSender interface {
-	SendTo(roomID, toPeerID string, env signaling.Envelope) error
-	Broadcast(roomID, excludePeerID string, env signaling.Envelope)
+	SendTo(roomID, toPeerID string, env room.Envelope) error
+	Broadcast(roomID, excludePeerID string, env room.Envelope)
 }
 
 // Bus defines the interface for cross-node message distribution.
 type Bus interface {
-	PublishDirect(roomID, toPeer string, env signaling.Envelope) error
-	PublishBroadcast(roomID, excludePeer string, env signaling.Envelope) error
+	PublishDirect(roomID, toPeer string, env room.Envelope) error
+	PublishBroadcast(roomID, excludePeer string, env room.Envelope) error
+	SubscribeRoom(roomID string, handler func(WireMessage)) error
+	UnsubscribeRoom(roomID string) error
+	Close() error
 }
 
 // Router handles message routing between local and cross-node destinations.
@@ -32,23 +33,17 @@ type Router struct {
 	metrics observability.Metrics
 }
 
-// New creates a new message router.
-func New(sender RoomSender, bus Bus, log *zap.Logger, metrics observability.Metrics) *Router {
+func NewRouter(sender RoomSender, bus Bus, log *zap.Logger, metrics observability.Metrics) *Router {
 	if metrics == nil {
 		metrics = observability.NewNoopMetrics()
 	}
-	return &Router{
-		sender:  sender,
-		bus:     bus,
-		log:     log,
-		metrics: metrics,
-	}
+	return &Router{sender: sender, bus: bus, log: log, metrics: metrics}
 }
 
 // Route delivers a message to its destination(s).
-// If msg.To is set, it sends directly to that peer (locally first, then via bus if not found).
-// Otherwise, it broadcasts to the room (locally and via bus).
-func (r *Router) Route(roomID, peerID string, msg signaling.Envelope) {
+// If msg.To is set, sends directly to that peer (locally first, then via bus
+// if the peer is not on this node). Otherwise broadcasts to the whole room.
+func (r *Router) Route(roomID, peerID string, msg room.Envelope) {
 	now := time.Now()
 	msg.Version = "v1"
 	msg.RoomID = roomID
@@ -68,16 +63,14 @@ func (r *Router) Route(roomID, peerID string, msg signaling.Envelope) {
 	r.routeBroadcast(roomID, peerID, msg)
 }
 
-func (r *Router) routeDirect(roomID string, msg signaling.Envelope) {
+func (r *Router) routeDirect(roomID string, msg room.Envelope) {
 	if err := r.sender.SendTo(roomID, msg.To, msg); err != nil {
-		if shouldPublishDirectFallback(err) {
-			if r.bus != nil {
-				if pubErr := r.bus.PublishDirect(roomID, msg.To, msg); pubErr != nil {
-					r.log.Warn("redis direct publish failed",
-						zap.Error(pubErr),
-						zap.String("roomID", roomID),
-						zap.String("toPeer", msg.To))
-				}
+		if shouldFallbackToBus(err) && r.bus != nil {
+			if pubErr := r.bus.PublishDirect(roomID, msg.To, msg); pubErr != nil {
+				r.log.Warn("redis direct publish failed",
+					zap.Error(pubErr),
+					zap.String("roomID", roomID),
+					zap.String("toPeer", msg.To))
 			}
 			return
 		}
@@ -88,7 +81,7 @@ func (r *Router) routeDirect(roomID string, msg signaling.Envelope) {
 	}
 }
 
-func (r *Router) routeBroadcast(roomID, peerID string, msg signaling.Envelope) {
+func (r *Router) routeBroadcast(roomID, peerID string, msg room.Envelope) {
 	r.sender.Broadcast(roomID, peerID, msg)
 	if r.bus != nil {
 		if err := r.bus.PublishBroadcast(roomID, peerID, msg); err != nil {
@@ -100,20 +93,20 @@ func (r *Router) routeBroadcast(roomID, peerID string, msg signaling.Envelope) {
 }
 
 // HandleWireMessage processes a message received from the bus.
-func (r *Router) HandleWireMessage(wm redispubsub.WireMessage) {
+func (r *Router) HandleWireMessage(wm WireMessage) {
 	switch wm.Kind {
-	case redispubsub.KindDirect:
-		if err := r.sender.SendTo(wm.RoomID, wm.ToPeer, wm.Envelope); err != nil && !shouldPublishDirectFallback(err) {
+	case KindDirect:
+		if err := r.sender.SendTo(wm.RoomID, wm.ToPeer, wm.Envelope); err != nil && !shouldFallbackToBus(err) {
 			r.log.Warn("redis direct delivery failed",
 				zap.Error(err),
 				zap.String("roomID", wm.RoomID),
 				zap.String("toPeer", wm.ToPeer))
 		}
-	case redispubsub.KindBroadcast:
+	case KindBroadcast:
 		r.sender.Broadcast(wm.RoomID, wm.ExcludePeer, wm.Envelope)
 	}
 }
 
-func shouldPublishDirectFallback(err error) bool {
+func shouldFallbackToBus(err error) bool {
 	return errors.Is(err, room.ErrRoomNotFound) || errors.Is(err, room.ErrPeerNotFound)
 }

@@ -88,7 +88,7 @@ Full list → [`env.example`](env.example)
 # Build image (with version injection)
 docker build --build-arg VERSION=v0.2.0 -t lessup/signaling:v0.2.0 .
 
-# Local orchestration (Redis + coturn included)
+# Local orchestration (Redis included)
 cp env.example docker/.env
 # then edit docker/.env and set SIGNAL_JWT_SECRET
 cd docker && docker compose up --build
@@ -105,17 +105,12 @@ make lint          # golangci-lint
 make build         # Build (with version injection)
 ```
 
-Load testing: `k6 run k6/ws-smoke.js`
-
 ## 📖 Documentation
 
 📘 **Online docs** → [lessup.github.io/aurora-signal](https://lessup.github.io/aurora-signal/)
 
 - [API Reference](https://lessup.github.io/aurora-signal/API.html)
 - [Design Document](https://lessup.github.io/aurora-signal/design.html)
-- [Contributing](https://lessup.github.io/aurora-signal/contributing.html)
-
-Release history → [`CHANGELOG.md`](CHANGELOG.md)
 
 ## 📄 License
 

@@ -13,8 +13,8 @@ import (
 
 func (s *Server) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		ID              string         `json:"id"`
-		MaxParticipants int            `json:"maxParticipants"`
+		ID              string `json:"id"`
+		MaxParticipants int    `json:"maxParticipants"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
 		writeErrorWithMetrics(w, http.StatusBadRequest, 2001, "invalid_body", err.Error(), s.metrics)

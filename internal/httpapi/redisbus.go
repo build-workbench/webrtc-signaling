@@ -1,4 +1,4 @@
-package redispubsub
+package httpapi
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LessUp/aurora-signal/internal/signaling"
+	"github.com/LessUp/aurora-signal/internal/room"
 	redis "github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
@@ -19,16 +19,18 @@ const (
 	KindDirect    MessageKind = "direct"
 )
 
+// WireMessage is the envelope used for cross-node pub/sub.
 type WireMessage struct {
-	Kind        MessageKind        `json:"kind"`
-	RoomID      string             `json:"roomId"`
-	ToPeer      string             `json:"toPeer,omitempty"`
-	ExcludePeer string             `json:"excludePeer,omitempty"`
-	Envelope    signaling.Envelope `json:"envelope"`
-	Origin      string             `json:"origin"`
+	Kind        MessageKind     `json:"kind"`
+	RoomID      string          `json:"roomId"`
+	ToPeer      string          `json:"toPeer,omitempty"`
+	ExcludePeer string          `json:"excludePeer,omitempty"`
+	Envelope    room.Envelope   `json:"envelope"`
+	Origin      string          `json:"origin"`
 }
 
-type Bus struct {
+// RedisBus implements Bus via Redis Pub/Sub.
+type RedisBus struct {
 	client *redis.Client
 	log    *zap.Logger
 	nodeID string
@@ -38,7 +40,7 @@ type Bus struct {
 	subs   map[string]*redis.PubSub
 }
 
-func New(addr, password string, db int, nodeID string, log *zap.Logger) (*Bus, error) {
+func NewRedisBus(addr, password string, db int, nodeID string, log *zap.Logger) (*RedisBus, error) {
 	cli := redis.NewClient(&redis.Options{Addr: addr, Password: password, DB: db})
 	pingCtx, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer pingCancel()
@@ -46,34 +48,33 @@ func New(addr, password string, db int, nodeID string, log *zap.Logger) (*Bus, e
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Bus{client: cli, nodeID: nodeID, log: log, ctx: ctx, cancel: cancel, subs: map[string]*redis.PubSub{}}, nil
+	return &RedisBus{
+		client: cli, nodeID: nodeID, log: log, ctx: ctx, cancel: cancel, subs: map[string]*redis.PubSub{},
+	}, nil
 }
 
-func (b *Bus) Ping() error {
+func (b *RedisBus) Ping() error {
 	ctx, cancel := context.WithTimeout(b.ctx, 3*time.Second)
 	defer cancel()
 	return b.client.Ping(ctx).Err()
 }
 
-func (b *Bus) channel(roomID string) string { return fmt.Sprintf("chan:room:%s", roomID) }
+func (b *RedisBus) channel(roomID string) string { return fmt.Sprintf("chan:room:%s", roomID) }
 
-func (b *Bus) PublishBroadcast(roomID, excludePeer string, env signaling.Envelope) error {
-	msg := WireMessage{Kind: KindBroadcast, RoomID: roomID, ExcludePeer: excludePeer, Envelope: env, Origin: b.nodeID}
-	return b.publish(msg)
+func (b *RedisBus) PublishBroadcast(roomID, excludePeer string, env room.Envelope) error {
+	return b.publish(WireMessage{Kind: KindBroadcast, RoomID: roomID, ExcludePeer: excludePeer, Envelope: env, Origin: b.nodeID})
 }
 
-func (b *Bus) PublishDirect(roomID, toPeer string, env signaling.Envelope) error {
-	msg := WireMessage{Kind: KindDirect, RoomID: roomID, ToPeer: toPeer, Envelope: env, Origin: b.nodeID}
-	return b.publish(msg)
+func (b *RedisBus) PublishDirect(roomID, toPeer string, env room.Envelope) error {
+	return b.publish(WireMessage{Kind: KindDirect, RoomID: roomID, ToPeer: toPeer, Envelope: env, Origin: b.nodeID})
 }
 
-func (b *Bus) publish(m WireMessage) error {
-	ch := b.channel(m.RoomID)
+func (b *RedisBus) publish(m WireMessage) error {
 	data, _ := json.Marshal(m)
-	return b.client.Publish(b.ctx, ch, data).Err()
+	return b.client.Publish(b.ctx, b.channel(m.RoomID), data).Err()
 }
 
-func (b *Bus) SubscribeRoom(roomID string, handler func(WireMessage)) error {
+func (b *RedisBus) SubscribeRoom(roomID string, handler func(WireMessage)) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if _, ok := b.subs[roomID]; ok {
@@ -97,7 +98,7 @@ func (b *Bus) SubscribeRoom(roomID string, handler func(WireMessage)) error {
 	return nil
 }
 
-func (b *Bus) UnsubscribeRoom(roomID string) error {
+func (b *RedisBus) UnsubscribeRoom(roomID string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	ps, ok := b.subs[roomID]
@@ -112,7 +113,7 @@ func (b *Bus) UnsubscribeRoom(roomID string) error {
 	return ps.Close()
 }
 
-func (b *Bus) Close() error {
+func (b *RedisBus) Close() error {
 	b.cancel()
 	b.mu.Lock()
 	defer b.mu.Unlock()

@@ -5,9 +5,9 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILD_TIME ?= $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 LDFLAGS := -s -w \
-	-X github.com/LessUp/aurora-signal/internal/version.Version=$(VERSION) \
-	-X github.com/LessUp/aurora-signal/internal/version.Commit=$(COMMIT) \
-	-X github.com/LessUp/aurora-signal/internal/version.BuildTime=$(BUILD_TIME)
+	-X github.com/LessUp/aurora-signal/cmd/server.Version=$(VERSION) \
+	-X github.com/LessUp/aurora-signal/cmd/server.Commit=$(COMMIT) \
+	-X github.com/LessUp/aurora-signal/cmd/server.BuildTime=$(BUILD_TIME)
 
 .PHONY: all deps build run test test-race test-cover vet lint fmt clean docker-build docker-push compose-up compose-down compose-logs
 

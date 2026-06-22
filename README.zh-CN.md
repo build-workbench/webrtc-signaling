@@ -88,7 +88,7 @@ make run
 # 构建镜像（支持版本注入）
 docker build --build-arg VERSION=v0.2.0 -t lessup/signaling:v0.2.0 .
 
-# 本地编排（含 Redis + coturn）
+# 本地编排（含 Redis）
 cp env.example docker/.env
 # 然后编辑 docker/.env 并设置 SIGNAL_JWT_SECRET
 cd docker && docker compose up --build
@@ -105,17 +105,12 @@ make lint          # golangci-lint
 make build         # 编译（含版本注入）
 ```
 
-压力测试：`k6 run k6/ws-smoke.js`
-
 ## 📖 文档
 
 📘 **在线文档** → [lessup.github.io/aurora-signal](https://lessup.github.io/aurora-signal/)
 
 - [API 参考](https://lessup.github.io/aurora-signal/API.html)
 - [系统设计](https://lessup.github.io/aurora-signal/design.html)
-- [贡献指南](https://lessup.github.io/aurora-signal/contributing.html)
-
-版本历史 → [`CHANGELOG.md`](CHANGELOG.md)
 
 ## 📄 许可证
 

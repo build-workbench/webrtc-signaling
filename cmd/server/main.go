@@ -15,9 +15,15 @@ import (
 	"github.com/LessUp/aurora-signal/internal/httpapi"
 	"github.com/LessUp/aurora-signal/internal/observability"
 	"github.com/LessUp/aurora-signal/internal/room"
-	"github.com/LessUp/aurora-signal/internal/version"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+)
+
+// Build-time variables injected via -ldflags.
+var (
+	Version   = "dev"
+	Commit    = "unknown"
+	BuildTime = "unknown"
 )
 
 func newLogger(level string) *zap.Logger {
@@ -49,9 +55,9 @@ func main() {
 		log.Warn(w)
 	}
 	log.Info("starting signal server",
-		zap.String("version", version.Version),
-		zap.String("commit", version.Commit),
-		zap.String("buildTime", version.BuildTime),
+		zap.String("version", Version),
+		zap.String("commit", Commit),
+		zap.String("buildTime", BuildTime),
 	)
 
 	var metrics observability.Metrics

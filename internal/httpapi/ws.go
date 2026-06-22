@@ -7,17 +7,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LessUp/aurora-signal/internal/permission"
 	"github.com/LessUp/aurora-signal/internal/room"
-	"github.com/LessUp/aurora-signal/internal/signaling"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 )
 
+// safeWS wraps a websocket.Conn with a write mutex and optional write timeout.
 type safeWS struct {
-	Conn         *websocket.Conn
+	conn         *websocket.Conn
 	mu           sync.Mutex
 	writeTimeout time.Duration
 }
@@ -26,18 +25,18 @@ func (s *safeWS) WriteJSON(v any) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.writeTimeout > 0 {
-		if err := s.Conn.SetWriteDeadline(time.Now().Add(s.writeTimeout)); err != nil {
+		if err := s.conn.SetWriteDeadline(time.Now().Add(s.writeTimeout)); err != nil {
 			return err
 		}
-		defer func() { _ = s.Conn.SetWriteDeadline(time.Time{}) }()
+		defer func() { _ = s.conn.SetWriteDeadline(time.Time{}) }()
 	}
-	return s.Conn.WriteJSON(v)
+	return s.conn.WriteJSON(v)
 }
 
 func (s *safeWS) WriteControl(messageType int, data []byte, deadline time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.Conn.WriteControl(messageType, data, deadline)
+	return s.conn.WriteControl(messageType, data, deadline)
 }
 
 type wsSession struct {
@@ -46,7 +45,7 @@ type wsSession struct {
 	conn        *websocket.Conn
 	peerID      string
 	userID      string
-	role        permission.Role
+	role        Role
 	displayName string
 	roomID      string
 	limiter     *rate.Limiter
@@ -56,11 +55,11 @@ type wsSession struct {
 func (s *Server) newSession(conn *websocket.Conn, userID, role, displayName string) *wsSession {
 	normalizedRole := s.policy.Normalize(role)
 	if normalizedRole == "" {
-		normalizedRole = permission.RoleSpeaker
+		normalizedRole = RoleSpeaker
 	}
 	return &wsSession{
 		srv:         s,
-		ws:          &safeWS{Conn: conn, writeTimeout: 5 * time.Second},
+		ws:          &safeWS{conn: conn, writeTimeout: 5 * time.Second},
 		conn:        conn,
 		peerID:      uuid.NewString(),
 		userID:      userID,
@@ -73,9 +72,9 @@ func (s *Server) newSession(conn *websocket.Conn, userID, role, displayName stri
 
 func (sess *wsSession) sendError(code int, message string) {
 	sess.srv.metrics.IncError(code)
-	_ = sess.ws.WriteJSON(signaling.Envelope{
-		Type:    signaling.TypeError,
-		Payload: mustJSON(signaling.ErrorPayload{Code: code, Message: message}),
+	_ = sess.ws.WriteJSON(room.Envelope{
+		Type:    room.TypeError,
+		Payload: mustJSON(room.ErrorPayload{Code: code, Message: message}),
 	})
 }
 
@@ -102,18 +101,20 @@ func (sess *wsSession) startPing(interval time.Duration) {
 	}()
 }
 
+// joinRoom reads the first message (must be a join) and joins the room.
+// sess.roomID is only set after a successful join so cleanup is a no-op on failure.
 func (sess *wsSession) joinRoom(tokenRoomID string) ([]*room.Participant, bool) {
-	var env signaling.Envelope
+	var env room.Envelope
 	if err := sess.conn.ReadJSON(&env); err != nil {
 		return nil, false
 	}
-	if env.Type != signaling.TypeJoin {
+	if env.Type != room.TypeJoin {
 		sess.sendError(2001, "first message must be join")
 		return nil, false
 	}
 	sess.srv.metrics.IncMessagesIn()
 
-	var jp signaling.JoinPayload
+	var jp room.JoinPayload
 	if err := json.Unmarshal(env.Payload, &jp); err != nil {
 		sess.sendError(2001, "invalid join payload")
 		return nil, false
@@ -126,16 +127,12 @@ func (sess *wsSession) joinRoom(tokenRoomID string) ([]*room.Participant, bool) 
 		sess.sendError(2003, "forbidden room")
 		return nil, false
 	}
-	if jp.Role != "" && sess.srv.policy.Normalize(jp.Role) == "" {
-		sess.sendError(2001, "invalid role")
-		return nil, false
-	}
+	// Role from the JWT token wins; the join payload role is intentionally
+	// ignored to prevent privilege escalation.
 
-	sess.roomID = jp.RoomID
 	if strings.TrimSpace(jp.DisplayName) != "" {
 		sess.displayName = strings.TrimSpace(jp.DisplayName)
 	}
-	// Role was already normalized in newSession
 
 	p := &room.Participant{
 		ID:          sess.peerID,
@@ -145,11 +142,12 @@ func (sess *wsSession) joinRoom(tokenRoomID string) ([]*room.Participant, bool) 
 		Conn:        sess.ws,
 		JoinedAt:    time.Now(),
 	}
-	peers, err := sess.srv.rooms.Join(sess.roomID, p)
+	peers, err := sess.srv.rooms.Join(jp.RoomID, p)
 	if err != nil {
 		sess.sendError(2010, err.Error())
 		return nil, false
 	}
+	sess.roomID = jp.RoomID
 	return peers, true
 }
 
@@ -160,8 +158,8 @@ func (sess *wsSession) notifyJoined(peers []*room.Participant) {
 			"id": pp.ID, "role": pp.Role, "displayName": pp.DisplayName,
 		})
 	}
-	_ = sess.ws.WriteJSON(signaling.Envelope{
-		Type:   signaling.TypeJoined,
+	_ = sess.ws.WriteJSON(room.Envelope{
+		Type:   room.TypeJoined,
 		RoomID: sess.roomID,
 		From:   sess.peerID,
 		Payload: mustJSON(map[string]any{
@@ -171,8 +169,8 @@ func (sess *wsSession) notifyJoined(peers []*room.Participant) {
 		}),
 	})
 
-	sess.srv.rooms.Broadcast(sess.roomID, sess.peerID, signaling.Envelope{
-		Type:   signaling.TypePeerJoin,
+	sess.srv.rooms.Broadcast(sess.roomID, sess.peerID, room.Envelope{
+		Type:   room.TypePeerJoin,
 		RoomID: sess.roomID,
 		From:   sess.peerID,
 		Payload: mustJSON(map[string]any{
@@ -183,7 +181,7 @@ func (sess *wsSession) notifyJoined(peers []*room.Participant) {
 
 func (sess *wsSession) readLoop() {
 	for {
-		var msg signaling.Envelope
+		var msg room.Envelope
 		if err := sess.conn.ReadJSON(&msg); err != nil {
 			return
 		}
@@ -195,7 +193,7 @@ func (sess *wsSession) readLoop() {
 		}
 
 		switch msg.Type {
-		case signaling.TypeOffer, signaling.TypeAnswer, signaling.TypeTrickle:
+		case room.TypeOffer, room.TypeAnswer, room.TypeTrickle:
 			if !sess.canSignalMedia() {
 				sess.sendError(2003, "viewers cannot send media signaling")
 				continue
@@ -206,17 +204,17 @@ func (sess *wsSession) readLoop() {
 			}
 			sess.srv.router.Route(sess.roomID, sess.peerID, msg)
 
-		case signaling.TypeChat:
+		case room.TypeChat:
 			sess.srv.router.Route(sess.roomID, sess.peerID, msg)
 
-		case signaling.TypeMute, signaling.TypeUnmute:
+		case room.TypeMute, room.TypeUnmute:
 			if msg.To != "" && msg.To != sess.peerID && !sess.canModerateOthers() {
 				sess.sendError(2003, "only moderators can mute/unmute others")
 				continue
 			}
 			sess.srv.router.Route(sess.roomID, sess.peerID, msg)
 
-		case signaling.TypeLeave:
+		case room.TypeLeave:
 			return
 
 		default:
@@ -237,8 +235,8 @@ func (sess *wsSession) cleanup() {
 	}
 
 	if _, ok := sess.srv.rooms.Leave(sess.roomID, sess.peerID); ok {
-		sess.srv.rooms.Broadcast(sess.roomID, sess.peerID, signaling.Envelope{
-			Type:    signaling.TypePeerLeave,
+		sess.srv.rooms.Broadcast(sess.roomID, sess.peerID, room.Envelope{
+			Type:    room.TypePeerLeave,
 			RoomID:  sess.roomID,
 			From:    sess.peerID,
 			Payload: mustJSON(map[string]any{"id": sess.peerID}),
