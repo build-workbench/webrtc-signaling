@@ -21,7 +21,7 @@ description: "漏洞报告与处理流程"
 
 请通过以下方式私下联系维护者：
 
-1. **GitHub Security Advisories** — 在仓库 Security 标签页中 [创建安全公告](https://github.com/LessUp/aurora-signal/security/advisories/new)
+1. **GitHub Security Advisories** — 在仓库 Security 标签页中 [创建安全公告](https://github.com/AICL-Lab/aurora-signal/security/advisories/new)
 2. **邮件** — 发送至项目维护者邮箱（详见仓库 Profile）
 
 报告中请包含：

@@ -116,4 +116,4 @@ make run            # 或 go run ./cmd/server
 
 ## 许可证
 
-[MIT License](https://github.com/AICL-Lab/aurora-signal/blob/main/LICENSE) &copy; 2025-2026 LessUp
+[MIT License](https://github.com/AICL-Lab/aurora-signal/blob/master/LICENSE) &copy; 2025-2026 LessUp
