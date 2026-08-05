@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LessUp/aurora-signal/internal/auth"
-	"github.com/LessUp/aurora-signal/internal/config"
-	"github.com/LessUp/aurora-signal/internal/observability"
-	"github.com/LessUp/aurora-signal/internal/room"
+	"github.com/AICL-Lab/aurora-signal/internal/auth"
+	"github.com/AICL-Lab/aurora-signal/internal/config"
+	"github.com/AICL-Lab/aurora-signal/internal/observability"
+	"github.com/AICL-Lab/aurora-signal/internal/room"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 )

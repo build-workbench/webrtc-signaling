@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LessUp/aurora-signal/internal/room"
+	"github.com/AICL-Lab/aurora-signal/internal/room"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"

@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/LessUp/aurora-signal/internal/config"
+	"github.com/AICL-Lab/aurora-signal/internal/config"
 	"github.com/go-chi/chi/v5"
 )
 

@@ -1,4 +1,4 @@
-module github.com/LessUp/aurora-signal
+module github.com/AICL-Lab/aurora-signal
 
 go 1.22
 

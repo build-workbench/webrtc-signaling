@@ -10,11 +10,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/LessUp/aurora-signal/internal/auth"
-	"github.com/LessUp/aurora-signal/internal/config"
-	"github.com/LessUp/aurora-signal/internal/httpapi"
-	"github.com/LessUp/aurora-signal/internal/observability"
-	"github.com/LessUp/aurora-signal/internal/room"
+	"github.com/AICL-Lab/aurora-signal/internal/auth"
+	"github.com/AICL-Lab/aurora-signal/internal/config"
+	"github.com/AICL-Lab/aurora-signal/internal/httpapi"
+	"github.com/AICL-Lab/aurora-signal/internal/observability"
+	"github.com/AICL-Lab/aurora-signal/internal/room"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )

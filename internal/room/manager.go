@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LessUp/aurora-signal/internal/observability"
+	"github.com/AICL-Lab/aurora-signal/internal/observability"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LessUp/aurora-signal/internal/room"
+	"github.com/AICL-Lab/aurora-signal/internal/room"
 	"go.uber.org/zap"
 )
 
