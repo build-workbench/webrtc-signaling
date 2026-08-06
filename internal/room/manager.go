@@ -104,9 +104,6 @@ type Manager struct {
 
 // NewManager creates a new room manager.
 func NewManager(log *zap.Logger, metrics observability.Metrics) *Manager {
-	if metrics == nil {
-		metrics = observability.NewNoopMetrics()
-	}
 	return &Manager{
 		rooms:   make(map[string]*Room),
 		log:     log,

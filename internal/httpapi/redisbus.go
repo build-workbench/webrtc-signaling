@@ -40,8 +40,8 @@ type RedisBus struct {
 	subs   map[string]*redis.PubSub
 }
 
-func NewRedisBus(addr, password string, db int, nodeID string, log *zap.Logger) (*RedisBus, error) {
-	cli := redis.NewClient(&redis.Options{Addr: addr, Password: password, DB: db})
+func NewRedisBus(addr, nodeID string, log *zap.Logger) (*RedisBus, error) {
+	cli := redis.NewClient(&redis.Options{Addr: addr})
 	pingCtx, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer pingCancel()
 	if err := cli.Ping(pingCtx).Err(); err != nil {

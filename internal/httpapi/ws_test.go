@@ -20,19 +20,9 @@ func testServer(t *testing.T) (*Server, *httptest.Server) {
 	t.Helper()
 	cfg := &config.Config{
 		LogLevel: "error",
-		Server: config.ServerCfg{
-			Addr:            ":0",
-			MaxMsgBytes:     65536,
-			PingIntervalSec: 30,
-			PongWaitSec:     60,
-		},
-		Security: config.SecurityCfg{
-			JWTSecret: "test-secret-for-integration",
-			RateLimit: config.RateLimitCfg{WSPerConnRPS: 100, WSBurst: 200},
-		},
-		Turn: config.TurnCfg{
-			STUN: []string{"stun:stun.l.google.com:19302"},
-		},
+		Server:   config.ServerCfg{Addr: ":0"},
+		Security: config.SecurityCfg{JWTSecret: "test-secret-for-integration"},
+		STUN:     []string{"stun:stun.l.google.com:19302"},
 	}
 	log, _ := zap.NewDevelopment()
 	metrics := observability.NewNoopMetrics()
@@ -89,20 +79,9 @@ func testServerWithAdmin(t *testing.T, adminKey string) (*Server, *httptest.Serv
 	t.Helper()
 	cfg := &config.Config{
 		LogLevel: "error",
-		Server: config.ServerCfg{
-			Addr:            ":0",
-			MaxMsgBytes:     65536,
-			PingIntervalSec: 30,
-			PongWaitSec:     60,
-		},
-		Security: config.SecurityCfg{
-			JWTSecret: "test-secret-for-integration",
-			AdminKey:  adminKey,
-			RateLimit: config.RateLimitCfg{WSPerConnRPS: 100, WSBurst: 200},
-		},
-		Turn: config.TurnCfg{
-			STUN: []string{"stun:stun.l.google.com:19302"},
-		},
+		Server:   config.ServerCfg{Addr: ":0"},
+		Security: config.SecurityCfg{JWTSecret: "test-secret-for-integration", AdminKey: adminKey},
+		STUN:     []string{"stun:stun.l.google.com:19302"},
 	}
 	log, _ := zap.NewDevelopment()
 	metrics := observability.NewNoopMetrics()
@@ -354,40 +333,12 @@ func TestWSErrorCases(t *testing.T) {
 	})
 }
 
-func TestMetricsDisabledHidesRoute(t *testing.T) {
-	cfg := &config.Config{
-		LogLevel:      "error",
-		Server:        config.ServerCfg{Addr: ":0", MaxMsgBytes: 65536, PingIntervalSec: 30, PongWaitSec: 60},
-		Security:      config.SecurityCfg{JWTSecret: "test-secret-for-integration", RateLimit: config.RateLimitCfg{WSPerConnRPS: 100, WSBurst: 200}},
-		Observability: config.ObservabilityCfg{PrometheusEnabled: false},
-	}
-	log, _ := zap.NewDevelopment()
-	metrics := observability.NewNoopMetrics()
-	mgr := room.NewManager(log, metrics)
-	jwtAuth := auth.NewJWT(cfg.Security.JWTSecret)
-	srv, err := NewServer(cfg, log, mgr, jwtAuth, metrics)
-	if err != nil {
-		t.Fatalf("new server: %v", err)
-	}
-	ts := httptest.NewServer(srv.httpSrv.Handler)
-	defer ts.Close()
-
-	resp, err := http.Get(ts.URL + "/metrics")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("expected 404 when metrics disabled, got %d", resp.StatusCode)
-	}
-}
-
 func TestWebSocketOriginRestricted(t *testing.T) {
 	cfg := &config.Config{
 		LogLevel: "error",
-		Server:   config.ServerCfg{Addr: ":0", MaxMsgBytes: 65536, PingIntervalSec: 30, PongWaitSec: 60, AllowedOrigins: []string{"https://allowed.example"}},
-		Security: config.SecurityCfg{JWTSecret: "test-secret-for-integration", RateLimit: config.RateLimitCfg{WSPerConnRPS: 100, WSBurst: 200}},
-		Turn:     config.TurnCfg{STUN: []string{"stun:stun.l.google.com:19302"}},
+		Server:   config.ServerCfg{Addr: ":0", AllowedOrigins: []string{"https://allowed.example"}},
+		Security: config.SecurityCfg{JWTSecret: "test-secret-for-integration"},
+		STUN:     []string{"stun:stun.l.google.com:19302"},
 	}
 	log, _ := zap.NewDevelopment()
 	metrics := observability.NewNoopMetrics()

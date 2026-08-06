@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/AICL-Lab/aurora-signal/internal/observability"
 	"github.com/AICL-Lab/aurora-signal/internal/room"
 	"go.uber.org/zap"
 )
@@ -37,7 +38,7 @@ func (b *stubBus) Close() error                                          { retur
 func TestRouteDirectFallsBackToBusWhenPeerMissing(t *testing.T) {
 	sender := &stubSender{sendErr: room.ErrPeerNotFound}
 	bus := &stubBus{}
-	rt := NewRouter(sender, bus, zap.NewNop(), nil)
+	rt := NewRouter(sender, bus, zap.NewNop(), observability.NewNoopMetrics())
 
 	rt.Route("room-1", "peer-a", room.Envelope{Type: room.TypeOffer, To: "peer-b"})
 
@@ -55,7 +56,7 @@ func TestRouteDirectFallsBackToBusWhenPeerMissing(t *testing.T) {
 func TestRouteDirectDoesNotFallbackOnLocalWriteError(t *testing.T) {
 	sender := &stubSender{sendErr: errors.New("broken pipe")}
 	bus := &stubBus{}
-	rt := NewRouter(sender, bus, zap.NewNop(), nil)
+	rt := NewRouter(sender, bus, zap.NewNop(), observability.NewNoopMetrics())
 
 	rt.Route("room-1", "peer-a", room.Envelope{Type: room.TypeOffer, To: "peer-b"})
 

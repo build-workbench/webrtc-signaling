@@ -10,7 +10,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
-	if s.cfg.Redis.Enabled {
+	if s.cfg.RedisAddr != "" {
 		if s.bus == nil {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			_, _ = w.Write([]byte("redis unavailable"))
@@ -27,17 +27,9 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) buildICEServers() []map[string]any {
-	resp := make([]map[string]any, 0, len(s.cfg.Turn.STUN)+len(s.cfg.Turn.TURN))
-	for _, u := range s.cfg.Turn.STUN {
+	resp := make([]map[string]any, 0, len(s.cfg.STUN))
+	for _, u := range s.cfg.STUN {
 		resp = append(resp, map[string]any{"urls": []string{u}})
-	}
-	for _, t := range s.cfg.Turn.TURN {
-		resp = append(resp, map[string]any{
-			"urls":       t.URLs,
-			"username":   t.Username,
-			"credential": t.Credential,
-			"ttl":        t.TTL,
-		})
 	}
 	return resp
 }

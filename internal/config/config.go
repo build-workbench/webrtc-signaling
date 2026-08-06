@@ -3,107 +3,41 @@ package config
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 )
 
-type ICEServer struct {
-	URLs       []string `json:"urls"`
-	Username   string   `json:"username,omitempty"`
-	Credential string   `json:"credential,omitempty"`
-	TTL        int      `json:"ttl,omitempty"`
-}
-
 type ServerCfg struct {
-	Addr            string   `json:"addr"`
-	AllowedOrigins  []string `json:"allowedOrigins"`
-	ReadTimeoutSec  int      `json:"readTimeoutSec"`
-	WriteTimeoutSec int      `json:"writeTimeoutSec"`
-	MaxMsgBytes     int      `json:"maxMsgBytes"`
-	PingIntervalSec int      `json:"pingIntervalSec"`
-	PongWaitSec     int      `json:"pongWaitSec"`
+	Addr           string   `json:"addr"`
+	AllowedOrigins []string `json:"allowedOrigins"`
 }
 
 type SecurityCfg struct {
-	JWTSecret string       `json:"jwtSecret"`
-	AdminKey  string       `json:"adminKey"`
-	RateLimit RateLimitCfg `json:"rateLimit"`
-}
-
-type RateLimitCfg struct {
-	WSPerConnRPS int `json:"wsPerConnRps"`
-	WSBurst      int `json:"wsBurst"`
-}
-
-type RedisCfg struct {
-	Enabled  bool   `json:"enabled"`
-	Addr     string `json:"addr"`
-	DB       int    `json:"db"`
-	Password string `json:"password"`
-}
-
-type ObservabilityCfg struct {
-	PrometheusEnabled bool   `json:"prometheusEnabled"`
-}
-
-type TurnCfg struct {
-	STUN []string    `json:"stun"`
-	TURN []ICEServer `json:"turn"`
+	JWTSecret string `json:"jwtSecret"`
+	AdminKey  string `json:"adminKey"`
 }
 
 type Config struct {
-	LogLevel      string           `json:"logLevel"`
-	Server        ServerCfg        `json:"server"`
-	Security      SecurityCfg      `json:"security"`
-	Redis         RedisCfg         `json:"redis"`
-	Turn          TurnCfg          `json:"turn"`
-	Observability ObservabilityCfg `json:"observability"`
+	LogLevel  string      `json:"logLevel"`
+	Server    ServerCfg   `json:"server"`
+	Security  SecurityCfg `json:"security"`
+	RedisAddr string      `json:"redisAddr"` // non-empty enables Redis Pub/Sub scale-out
+	STUN      []string    `json:"stun"`
 }
 
 func Load() *Config {
-	cfg := &Config{
+	return &Config{
 		LogLevel: getEnv("SIGNAL_LOG_LEVEL", "info"),
 		Server: ServerCfg{
-			Addr:            getEnv("SIGNAL_ADDR", ":8080"),
-			AllowedOrigins:  split(getEnv("SIGNAL_ALLOWED_ORIGINS", "")),
-			ReadTimeoutSec:  getEnvInt("SIGNAL_READ_TIMEOUT", 10),
-			WriteTimeoutSec: getEnvInt("SIGNAL_WRITE_TIMEOUT", 10),
-			MaxMsgBytes:     getEnvInt("SIGNAL_MAX_MSG_BYTES", 65536),
-			PingIntervalSec: getEnvInt("SIGNAL_WS_PING_INTERVAL", 10),
-			PongWaitSec:     getEnvInt("SIGNAL_WS_PONG_WAIT", 25),
+			Addr:           getEnv("SIGNAL_ADDR", ":8080"),
+			AllowedOrigins: split(getEnv("SIGNAL_ALLOWED_ORIGINS", "")),
 		},
 		Security: SecurityCfg{
 			JWTSecret: getEnv("SIGNAL_JWT_SECRET", ""),
 			AdminKey:  getEnv("SIGNAL_ADMIN_KEY", ""),
-			RateLimit: RateLimitCfg{
-				WSPerConnRPS: getEnvInt("SIGNAL_WS_RPS", 20),
-				WSBurst:      getEnvInt("SIGNAL_WS_BURST", 40),
-			},
 		},
-		Redis: RedisCfg{
-			Enabled:  getEnvBool("SIGNAL_REDIS_ENABLED", false),
-			Addr:     getEnv("SIGNAL_REDIS_ADDR", "localhost:6379"),
-			DB:       getEnvInt("SIGNAL_REDIS_DB", 0),
-			Password: getEnv("SIGNAL_REDIS_PASSWORD", ""),
-		},
-		Turn: TurnCfg{
-			STUN: split(getEnv("SIGNAL_STUN", "stun:stun.l.google.com:19302")),
-			TURN: []ICEServer{},
-		},
-		Observability: ObservabilityCfg{
-			PrometheusEnabled: getEnvBool("SIGNAL_PROM_ENABLED", true),
-		},
+		RedisAddr: getEnv("SIGNAL_REDIS_ADDR", ""),
+		STUN:      split(getEnv("SIGNAL_STUN", "stun:stun.l.google.com:19302")),
 	}
-
-	if tu := strings.TrimSpace(os.Getenv("SIGNAL_TURN_URLS")); tu != "" {
-		cfg.Turn.TURN = append(cfg.Turn.TURN, ICEServer{
-			URLs:       split(tu),
-			Username:   getEnv("SIGNAL_TURN_USERNAME", ""),
-			Credential: getEnv("SIGNAL_TURN_CREDENTIAL", ""),
-			TTL:        getEnvInt("SIGNAL_TURN_TTL", 600),
-		})
-	}
-	return cfg
 }
 
 func (c *Config) Validate() (warnings []string, err error) {
@@ -112,15 +46,6 @@ func (c *Config) Validate() (warnings []string, err error) {
 	}
 	if len(c.Security.JWTSecret) < 16 {
 		warnings = append(warnings, "JWT secret is shorter than 16 characters, consider using a stronger secret")
-	}
-	if c.Redis.Enabled && strings.TrimSpace(c.Redis.Addr) == "" {
-		return warnings, fmt.Errorf("SIGNAL_REDIS_ADDR is required when redis is enabled")
-	}
-	if c.Server.PongWaitSec <= c.Server.PingIntervalSec {
-		return warnings, fmt.Errorf("pong wait (%ds) must be greater than ping interval (%ds)", c.Server.PongWaitSec, c.Server.PingIntervalSec)
-	}
-	if c.Server.MaxMsgBytes <= 0 {
-		return warnings, fmt.Errorf("max message bytes must be positive, got %d", c.Server.MaxMsgBytes)
 	}
 	return warnings, nil
 }
@@ -170,23 +95,6 @@ func split(s string) []string {
 func getEnv(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
-	}
-	return def
-}
-
-func getEnvInt(key string, def int) int {
-	if v := os.Getenv(key); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			return n
-		}
-	}
-	return def
-}
-
-func getEnvBool(key string, def bool) bool {
-	if v := os.Getenv(key); v != "" {
-		v = strings.ToLower(v)
-		return v == "1" || v == "true" || v == "yes"
 	}
 	return def
 }

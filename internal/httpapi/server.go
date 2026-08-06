@@ -42,9 +42,6 @@ type Server struct {
 }
 
 func NewServer(cfg *config.Config, log *zap.Logger, rooms *room.Manager, authJWT auth.Authenticator, metrics observability.Metrics) (*Server, error) {
-	if metrics == nil {
-		metrics = observability.NewNoopMetrics()
-	}
 	s := &Server{
 		cfg:         cfg,
 		log:         log,
@@ -63,8 +60,8 @@ func NewServer(cfg *config.Config, log *zap.Logger, rooms *room.Manager, authJWT
 	}
 
 	var bus Bus
-	if cfg.Redis.Enabled {
-		redisBus, err := NewRedisBus(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB, s.nodeID, s.log)
+	if cfg.RedisAddr != "" {
+		redisBus, err := NewRedisBus(cfg.RedisAddr, s.nodeID, s.log)
 		if err != nil {
 			return nil, err
 		}
@@ -82,9 +79,7 @@ func NewServer(cfg *config.Config, log *zap.Logger, rooms *room.Manager, authJWT
 
 	mux.Get("/healthz", s.handleHealth)
 	mux.Get("/readyz", s.handleReady)
-	if s.cfg.Observability.PrometheusEnabled {
-		mux.Get("/metrics", promhttp.Handler().ServeHTTP)
-	}
+	mux.Get("/metrics", promhttp.Handler().ServeHTTP)
 
 	mux.Get("/api/v1/ice-servers", s.handleICEServers)
 	mux.Post("/api/v1/rooms", s.handleCreateRoom)
@@ -102,8 +97,8 @@ func NewServer(cfg *config.Config, log *zap.Logger, rooms *room.Manager, authJWT
 	s.httpSrv = &http.Server{
 		Addr:         cfg.Server.Addr,
 		Handler:      mux,
-		ReadTimeout:  time.Duration(cfg.Server.ReadTimeoutSec) * time.Second,
-		WriteTimeout: time.Duration(cfg.Server.WriteTimeoutSec) * time.Second,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
 	}
 	return s, nil
 }

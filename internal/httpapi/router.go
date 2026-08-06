@@ -34,9 +34,6 @@ type Router struct {
 }
 
 func NewRouter(sender RoomSender, bus Bus, log *zap.Logger, metrics observability.Metrics) *Router {
-	if metrics == nil {
-		metrics = observability.NewNoopMetrics()
-	}
 	return &Router{sender: sender, bus: bus, log: log, metrics: metrics}
 }
 

@@ -14,6 +14,14 @@ import (
 	"golang.org/x/time/rate"
 )
 
+const (
+	wsPingInterval = 10 * time.Second
+	wsPongWait     = 25 * time.Second
+	wsMaxMsgBytes  = 64 * 1024
+	wsRateLimitRPS = 20
+	wsRateBurst    = 40
+)
+
 // safeWS wraps a websocket.Conn with a write mutex and optional write timeout.
 type safeWS struct {
 	conn         *websocket.Conn
@@ -65,7 +73,7 @@ func (s *Server) newSession(conn *websocket.Conn, userID, role, displayName stri
 		userID:      userID,
 		role:        normalizedRole,
 		displayName: strings.TrimSpace(displayName),
-		limiter:     rate.NewLimiter(rate.Limit(s.cfg.Security.RateLimit.WSPerConnRPS), s.cfg.Security.RateLimit.WSBurst),
+		limiter:     rate.NewLimiter(wsRateLimitRPS, wsRateBurst),
 		done:        make(chan struct{}),
 	}
 }
@@ -305,18 +313,16 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	sess := s.newSession(conn, claims.Subject, claims.Role, claims.DisplayName)
 	defer sess.cleanup()
 
-	pongWait := time.Duration(s.cfg.Server.PongWaitSec) * time.Second
-	pingInterval := time.Duration(s.cfg.Server.PingIntervalSec) * time.Second
-	conn.SetReadLimit(int64(s.cfg.Server.MaxMsgBytes))
-	_ = conn.SetReadDeadline(time.Now().Add(pongWait))
+	conn.SetReadLimit(wsMaxMsgBytes)
+	_ = conn.SetReadDeadline(time.Now().Add(wsPongWait))
 	conn.SetPongHandler(func(string) error {
-		return conn.SetReadDeadline(time.Now().Add(pongWait))
+		return conn.SetReadDeadline(time.Now().Add(wsPongWait))
 	})
 
 	s.metrics.IncConnections()
 	defer s.metrics.DecConnections()
 
-	sess.startPing(pingInterval)
+	sess.startPing(wsPingInterval)
 
 	peers, ok := sess.joinRoom(claims.Rid)
 	if !ok {

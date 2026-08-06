@@ -60,12 +60,7 @@ func main() {
 		zap.String("buildTime", BuildTime),
 	)
 
-	var metrics observability.Metrics
-	if cfg.Observability.PrometheusEnabled {
-		metrics = observability.NewPrometheusMetrics()
-	} else {
-		metrics = observability.NewNoopMetrics()
-	}
+	metrics := observability.NewPrometheusMetrics()
 
 	mgr := room.NewManager(log, metrics)
 	mgr.StartCleanup(30*time.Second, 5*time.Minute)

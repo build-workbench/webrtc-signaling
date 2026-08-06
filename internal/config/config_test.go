@@ -8,11 +8,14 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.Server.Addr != ":8080" {
 		t.Fatalf("expected default addr :8080, got %s", cfg.Server.Addr)
 	}
-	if cfg.Server.MaxMsgBytes != 65536 {
-		t.Fatalf("expected default maxMsgBytes 65536, got %d", cfg.Server.MaxMsgBytes)
-	}
 	if cfg.LogLevel != "info" {
 		t.Fatalf("expected default log level info, got %s", cfg.LogLevel)
+	}
+	if cfg.RedisAddr != "" {
+		t.Fatalf("expected redis disabled by default, got %q", cfg.RedisAddr)
+	}
+	if len(cfg.STUN) != 1 || cfg.STUN[0] != "stun:stun.l.google.com:19302" {
+		t.Fatalf("expected default google STUN, got %v", cfg.STUN)
 	}
 }
 
@@ -21,6 +24,7 @@ func TestLoadFromEnv(t *testing.T) {
 	t.Setenv("SIGNAL_LOG_LEVEL", "debug")
 	t.Setenv("SIGNAL_JWT_SECRET", "test-secret-for-env")
 	t.Setenv("SIGNAL_ALLOWED_ORIGINS", "https://a.example, https://b.example")
+	t.Setenv("SIGNAL_REDIS_ADDR", "redis:6379")
 	cfg := Load()
 	if cfg.Server.Addr != ":9090" {
 		t.Fatalf("expected addr :9090, got %s", cfg.Server.Addr)
@@ -30,6 +34,9 @@ func TestLoadFromEnv(t *testing.T) {
 	}
 	if len(cfg.Server.AllowedOrigins) != 2 {
 		t.Fatalf("expected 2 allowed origins, got %d", len(cfg.Server.AllowedOrigins))
+	}
+	if cfg.RedisAddr != "redis:6379" {
+		t.Fatalf("expected redis addr redis:6379, got %q", cfg.RedisAddr)
 	}
 }
 
@@ -63,38 +70,6 @@ func TestValidateWarnsOnShortSecret(t *testing.T) {
 	}
 	if len(warnings) != 1 {
 		t.Fatalf("expected 1 warning, got %v", warnings)
-	}
-}
-
-func TestValidatePongLessThanPing(t *testing.T) {
-	t.Setenv("SIGNAL_JWT_SECRET", "test-secret-for-validate")
-	cfg := Load()
-	cfg.Server.PongWaitSec = 5
-	cfg.Server.PingIntervalSec = 10
-	_, err := cfg.Validate()
-	if err == nil {
-		t.Fatal("expected validation error when pong <= ping")
-	}
-}
-
-func TestValidateMaxMsgBytesZero(t *testing.T) {
-	t.Setenv("SIGNAL_JWT_SECRET", "test-secret-for-validate")
-	cfg := Load()
-	cfg.Server.MaxMsgBytes = 0
-	_, err := cfg.Validate()
-	if err == nil {
-		t.Fatal("expected validation error when maxMsgBytes <= 0")
-	}
-}
-
-func TestValidateRedisEnabledRequiresAddr(t *testing.T) {
-	t.Setenv("SIGNAL_JWT_SECRET", "test-secret-for-validate")
-	cfg := Load()
-	cfg.Redis.Enabled = true
-	cfg.Redis.Addr = ""
-	_, err := cfg.Validate()
-	if err == nil {
-		t.Fatal("expected validation error when redis enabled without addr")
 	}
 }
 
@@ -139,39 +114,12 @@ func TestSplitTrimsEmptyValues(t *testing.T) {
 	}
 }
 
-func TestGetEnvHelpers(t *testing.T) {
+func TestGetEnv(t *testing.T) {
 	t.Setenv("TEST_STRING", "value")
 	if got := getEnv("TEST_STRING", "fallback"); got != "value" {
 		t.Fatalf("expected existing value, got %q", got)
 	}
 	if got := getEnv("TEST_MISSING", "fallback"); got != "fallback" {
 		t.Fatalf("expected fallback, got %q", got)
-	}
-
-	t.Setenv("TEST_INT", "123")
-	if got := getEnvInt("TEST_INT", 42); got != 123 {
-		t.Fatalf("expected int 123, got %d", got)
-	}
-	t.Setenv("TEST_INT", "invalid")
-	if got := getEnvInt("TEST_INT", 42); got != 42 {
-		t.Fatalf("expected fallback int 42, got %d", got)
-	}
-
-	boolCases := []struct {
-		value string
-		want  bool
-	}{
-		{"true", true},
-		{"1", true},
-		{"yes", true},
-		{"false", false},
-		{"0", false},
-		{"no", false},
-	}
-	for _, tc := range boolCases {
-		t.Setenv("TEST_BOOL", tc.value)
-		if got := getEnvBool("TEST_BOOL", false); got != tc.want {
-			t.Fatalf("getEnvBool(%q) = %v, want %v", tc.value, got, tc.want)
-		}
 	}
 }
