@@ -2,19 +2,16 @@ networks:
   signal-net:
     driver: bridge
 
-volumes:
-  redis-data:
-
 services:
   server:
     build:
       context: ..
-      args:
-        GO_VERSION: "1.23"
     image: lessup/signaling:dev
     restart: unless-stopped
-    env_file:
-      - .env
+    environment:
+      SIGNAL_JWT_SECRET: ${SIGNAL_JWT_SECRET:?set SIGNAL_JWT_SECRET before starting}
+      SIGNAL_REDIS_ADDR: redis:6379
+      SIGNAL_LOG_LEVEL: ${SIGNAL_LOG_LEVEL:-info}
     ports:
       - "${SIGNAL_PORT:-8080}:8080"
     depends_on:
@@ -26,30 +23,16 @@ services:
       timeout: 3s
       retries: 3
       start_period: 5s
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: "1.0"
     networks:
       - signal-net
 
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    volumes:
-      - redis-data:/data
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: "0.5"
     networks:
       - signal-net

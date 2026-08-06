@@ -22,11 +22,6 @@ docker/.env
 # Node (for demos if any)
 node_modules/
 
-# Jekyll (GitHub Pages)
-docs/_site/
-docs/.jekyll-cache/
-docs/.jekyll-metadata
-docs/Gemfile.lock
 
 # Claude Code local state
 .claude/

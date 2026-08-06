@@ -1,39 +1,23 @@
-# VCS & editor files
+# VCS & editor
 .git
+.github
 .gitignore
-.editorconfig
 .vscode
 .idea
 
-# CI / GitHub
-.github/
-
-# Documentation & metadata
-docs/
+# Docs & metadata (not needed in image)
 *.md
 LICENSE
 
 # Docker (avoid recursive context)
 docker/
 
-# Go build outputs
+# Go build outputs & tests
 bin/
-build/
-dist/
 coverage.out
 coverage.html
-
-# Test & benchmark
-k6/
 *_test.go
-
-# Node modules
-node_modules/
 
 # Local env
 .env
 .env.*
-env.example
-
-# Linter config
-.golangci.yml
