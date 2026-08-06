@@ -19,9 +19,5 @@ vendor/
 .env.*
 docker/.env
 
-# Node (for demos if any)
-node_modules/
-
-
 # Claude Code local state
 .claude/
