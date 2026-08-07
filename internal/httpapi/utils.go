@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/AICL-Lab/aurora-signal/internal/observability"
+	"github.com/vibe-knight/aurora-signal/internal/observability"
 )
 
 // writeJSON writes a JSON response with the given status code.

@@ -9,7 +9,7 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/AICL-Lab/aurora-signal/internal/config"
+	"github.com/vibe-knight/aurora-signal/internal/config"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )

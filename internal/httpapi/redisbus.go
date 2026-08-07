@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/AICL-Lab/aurora-signal/internal/room"
+	"github.com/vibe-knight/aurora-signal/internal/room"
 	redis "github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )

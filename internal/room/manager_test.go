@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AICL-Lab/aurora-signal/internal/observability"
+	"github.com/vibe-knight/aurora-signal/internal/observability"
 	"go.uber.org/zap"
 )
 

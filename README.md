@@ -6,8 +6,8 @@
 
 [![Go](https://img.shields.io/badge/Go-1.22-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![CI](https://github.com/AICL-Lab/aurora-signal/actions/workflows/ci.yml/badge.svg)](https://github.com/AICL-Lab/aurora-signal/actions/workflows/ci.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/AICL-Lab/aurora-signal)](https://goreportcard.com/report/github.com/AICL-Lab/aurora-signal)
+[![CI](https://github.com/vibe-knight/aurora-signal/actions/workflows/ci.yml/badge.svg)](https://github.com/vibe-knight/aurora-signal/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/vibe-knight/aurora-signal)](https://goreportcard.com/report/github.com/vibe-knight/aurora-signal)
 
 </div>
 

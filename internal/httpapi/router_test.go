@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/AICL-Lab/aurora-signal/internal/observability"
-	"github.com/AICL-Lab/aurora-signal/internal/room"
+	"github.com/vibe-knight/aurora-signal/internal/observability"
+	"github.com/vibe-knight/aurora-signal/internal/room"
 	"go.uber.org/zap"
 )
 

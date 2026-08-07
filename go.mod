@@ -1,4 +1,4 @@
-module github.com/AICL-Lab/aurora-signal
+module github.com/vibe-knight/aurora-signal
 
 go 1.22
 

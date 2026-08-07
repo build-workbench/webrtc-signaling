@@ -28,7 +28,7 @@ FROM gcr.io/distroless/static-debian12:nonroot AS runtime
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="aurora-signal" \
       org.opencontainers.image.description="WebRTC signaling server" \
-      org.opencontainers.image.source="https://github.com/AICL-Lab/aurora-signal" \
+      org.opencontainers.image.source="https://github.com/vibe-knight/aurora-signal" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.licenses="MIT"
 WORKDIR /app
