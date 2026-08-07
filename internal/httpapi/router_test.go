@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/vibe-knight/aurora-signal/internal/observability"
-	"github.com/vibe-knight/aurora-signal/internal/room"
+	"github.com/vibe-knight/webrtc-signaling/internal/observability"
+	"github.com/vibe-knight/webrtc-signaling/internal/room"
 	"go.uber.org/zap"
 )
 

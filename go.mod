@@ -1,4 +1,4 @@
-module github.com/vibe-knight/aurora-signal
+module github.com/vibe-knight/webrtc-signaling
 
 go 1.22
 

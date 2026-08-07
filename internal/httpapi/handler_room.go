@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/vibe-knight/aurora-signal/internal/config"
+	"github.com/vibe-knight/webrtc-signaling/internal/config"
 	"github.com/go-chi/chi/v5"
 )
 

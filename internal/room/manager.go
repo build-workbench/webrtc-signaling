@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vibe-knight/aurora-signal/internal/observability"
+	"github.com/vibe-knight/webrtc-signaling/internal/observability"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )

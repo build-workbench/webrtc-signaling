@@ -6,7 +6,7 @@ services:
   server:
     build:
       context: ..
-    image: lessup/signaling:dev
+    image: webrtc-signaling:dev
     restart: unless-stopped
     environment:
       SIGNAL_JWT_SECRET: ${SIGNAL_JWT_SECRET:?set SIGNAL_JWT_SECRET before starting}

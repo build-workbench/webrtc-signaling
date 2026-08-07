@@ -10,11 +10,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/vibe-knight/aurora-signal/internal/auth"
-	"github.com/vibe-knight/aurora-signal/internal/config"
-	"github.com/vibe-knight/aurora-signal/internal/httpapi"
-	"github.com/vibe-knight/aurora-signal/internal/observability"
-	"github.com/vibe-knight/aurora-signal/internal/room"
+	"github.com/vibe-knight/webrtc-signaling/internal/auth"
+	"github.com/vibe-knight/webrtc-signaling/internal/config"
+	"github.com/vibe-knight/webrtc-signaling/internal/httpapi"
+	"github.com/vibe-knight/webrtc-signaling/internal/observability"
+	"github.com/vibe-knight/webrtc-signaling/internal/room"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
