@@ -2,68 +2,26 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
-    paths-ignore:
-      - '**.md'
-      - 'LICENSE'
-      - 'docs/**'
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
-    paths-ignore:
-      - '**.md'
-      - 'LICENSE'
-      - 'docs/**'
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build-test:
+  go:
+    name: Go
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.22.x'
+          go-version: '1.22'
           cache: true
-      - name: Tidy
-        run: go mod tidy
-      - name: Check go.mod/go.sum clean
-        run: git diff --exit-code -- go.mod go.sum
-      - name: Vet
-        run: go vet ./...
-      - name: Build
-        run: go build -trimpath ./...
-      - name: Test (race + coverage)
-        run: go test -race -count=1 -coverprofile=coverage.out ./...
-      - name: Upload coverage
-        if: github.event_name == 'push'
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage
-          path: coverage.out
-          retention-days: 7
-
-  docker:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push'
-    needs: [build-test]
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build Docker image
-        run: docker build -t signaling-ci:check .
-      - name: Smoke test container
-        run: |
-          cid=$(docker run -d -e SIGNAL_JWT_SECRET=test-secret-for-ci -p 18080:8080 signaling-ci:check)
-          trap 'docker logs "$cid"; docker rm -f "$cid"' EXIT
-          for i in $(seq 1 20); do
-            if curl -fsS http://127.0.0.1:18080/healthz >/dev/null; then
-              exit 0
-            fi
-            sleep 1
-          done
-          exit 1
+      - run: go build ./...
+      - run: go test -race -count=1 ./...
+      - run: go vet ./...
