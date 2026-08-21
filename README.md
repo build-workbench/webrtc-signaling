@@ -1,12 +1,12 @@
 # WebRTC Signaling
 
-**Go 语言 WebRTC 信令服务教学项目** -- 涵盖 JWT 认证、Redis Pub/Sub 水平扩展、Prometheus 指标、结构化日志、速率限制等后端工程模式。
+**个人练手项目** -- 用 Go 语言实现的 WebRTC 信令服务，涵盖 JWT 认证、Redis Pub/Sub 水平扩展、Prometheus 指标、结构化日志、速率限制等后端工程实践。
 
 [![Go](https://img.shields.io/badge/Go-1.22-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![CI](https://github.com/vibe-knight/webrtc-signaling/actions/workflows/ci.yml/badge.svg)](https://github.com/vibe-knight/webrtc-signaling/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## 这个项目教你什么
+## 功能特性
 
 - **WebSocket 信令** -- 房间管理、SDP/ICE 消息路由、消息信封设计
 - **JWT 认证** -- Token 签发与验证、Join Token 流程、常量时间比较
