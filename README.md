@@ -1,6 +1,6 @@
 # WebRTC Signaling
 
-**生产风格（production-style）的 WebRTC 信令服务** —— 用 Go 从零实现，聚焦认证、水平扩展、可观测性与部署等后端工程实践。个人练手作品，与姊妹项目 [webrtc-demo](https://github.com/build-workbench/webrtc-demo) 形成「最小实现 vs 工程化实现」的对照学习路径。
+**生产风格（production-style）的 WebRTC 信令服务** —— 用 Go 从零实现，聚焦认证、水平扩展、可观测性与部署等后端工程实践。个人练手作品，与姊妹项目 [webrtc-call](https://github.com/build-workbench/webrtc-call) 形成「前端通话客户端 vs 后端信令服务」的对照学习路径。
 
 [![Go](https://img.shields.io/badge/Go-1.22-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![CI](https://github.com/build-workbench/webrtc-signaling/actions/workflows/ci.yml/badge.svg)](https://github.com/build-workbench/webrtc-signaling/actions/workflows/ci.yml)
@@ -22,7 +22,7 @@ WebRTC 的媒体流在浏览器之间 P2P 直连，但"谁在哪个房间、如�
 
 | 项目 | 定位 |
 |------|------|
-| [webrtc-demo](https://github.com/build-workbench/webrtc-demo) | **最小实现**：Go 信令 + 浏览器原生 WebRTC 音视频通话，适合先理解协议全貌 |
+| [webrtc-call](https://github.com/build-workbench/webrtc-call) | **前端通话客户端**：浏览器原生 WebRTC 音视频通话（1v1 / Mesh 多人），先体验 P2P 通话全流程 |
 | **webrtc-signaling（本仓库）** | **工程化实现**：在信令之上补齐认证、水平扩展、可观测性、部署与测试 |
 
 ## 功能特性
