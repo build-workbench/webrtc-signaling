@@ -6,6 +6,12 @@
 [![CI](https://github.com/build-workbench/webrtc-signaling/actions/workflows/ci.yml/badge.svg)](https://github.com/build-workbench/webrtc-signaling/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
+## 产品截图
+
+双端加入同一房间（`web/index.html` 演示前端，由截图脚本自动运行真实服务生成）：
+
+![WebRTC Signaling 演示 —— 双端加入房间、参与者列表与文本消息](docs/screenshot-demo-browser.png)
+
 ## 项目定位与场景目标
 
 WebRTC 的媒体流在浏览器之间 P2P 直连，但"谁在哪个房间、如何互相发现、如何交换 SDP / ICE 候选"需要一条信令通道。**本仓库就是这个信令后端**，并刻意按生产工程的规格来写：
