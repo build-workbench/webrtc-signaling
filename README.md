@@ -8,7 +8,7 @@
 
 ## 产品截图
 
-双端加入同一房间（`web/index.html` 演示前端，由截图脚本自动运行真实服务生成）：
+浅色模式演示界面（`web/index.html` 演示前端）。双端 Alice / Bob 加入同一房间，截图展示视频画面、参与者列表与房间聊天；界面字体使用 Resource Han Rounded CN（中文）与 Code New Roman（英文/数字）：
 
 ![WebRTC Signaling 演示 —— 双端加入房间、参与者列表与文本消息](docs/screenshot-demo-browser.png)
 

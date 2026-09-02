@@ -4,76 +4,241 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="WebRTC Signaling — WebRTC 信令服务演示" />
-  <meta name="theme-color" content="#0b1020" />
+  <meta name="theme-color" content="#f4f6fb" />
   <title>WebRTC Signaling · Demo</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌌</text></svg>" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>" />
   <style>
+    /* ============ 设计变量 ============ */
+    :root {
+      /* 字体：中文 Resource Han Rounded CN，英文/数字 Code New Roman */
+      --font-en: "Code New Roman", "Segoe UI", Roboto, sans-serif;
+      --font-cn: "Resource Han Rounded CN", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+
+      /* 浅色画布 */
+      --bg: #f4f6fb;
+      --bg-grad-1: #eef2ff;
+      --bg-grad-2: #f5f3ff;
+      --card: #ffffff;
+      --card-soft: #f8fafc;
+      --ink: #0f172a;
+      --ink-2: #475569;
+      --ink-3: #94a3b8;
+      --line: #e6eaf2;
+      --line-2: #cbd5e1;
+      --brand: #4f46e5;
+      --brand-2: #7c3aed;
+      --brand-grad: linear-gradient(135deg, #4f46e5, #7c3aed);
+      --brand-soft: #eef2ff;
+      --ok: #10b981;
+      --ok-soft: #ecfdf5;
+      --ok-line: #a7f3d0;
+      --warn: #f59e0b;
+      --warn-soft: #fffbeb;
+      --err: #ef4444;
+      --err-soft: #fef2f2;
+      --shadow-sm: 0 1px 2px rgba(15,23,42,.06);
+      --shadow-md: 0 8px 30px -12px rgba(79,70,229,.15);
+      --shadow-lg: 0 20px 50px -20px rgba(79,70,229,.25);
+      --r-lg: 22px;
+      --r-md: 16px;
+      --r-sm: 10px;
+    }
+
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#0b1020;color:#e6edf3;line-height:1.5;min-height:100vh}
+    html{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+    body{
+      font-family:var(--font-cn), var(--font-en);
+      color:var(--ink);line-height:1.55;min-height:100vh;
+      background:
+        radial-gradient(900px 420px at 88% -8%, #e0e7ff 0%, rgba(224,231,255,0) 60%),
+        radial-gradient(800px 420px at -6% 108%, #ede9fe 0%, rgba(237,233,254,0) 55%),
+        var(--bg);
+      background-attachment:fixed;
+    }
     .hidden{display:none!important}
-    .container{max-width:960px;margin:0 auto;padding:20px 16px}
-    .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
-    .header h1{font-size:1.35rem;font-weight:700;background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-    .badge{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:3px 10px;border-radius:999px;background:#1e293b;color:#94a3b8}
-    .badge--online{background:#064e3b;color:#34d399}
-    .badge--warn{background:#422006;color:#fbbf24}
-    .panel{background:#111827;border:1px solid #1e293b;border-radius:12px;padding:24px;max-width:400px;margin:0 auto}
-    .form-row{margin-bottom:14px}
-    .form-row label{display:block;font-size:.8rem;font-weight:500;color:#94a3b8;margin-bottom:4px}
-    .form-row input{width:100%;padding:10px 12px;border-radius:8px;border:1px solid #2d3848;background:#0f1730;color:#e6edf3;font-size:.9rem}
-    .form-row input:focus{outline:none;border-color:#3b82f6}
-    .btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 20px;border-radius:8px;border:none;font-size:.9rem;font-weight:500;cursor:pointer;color:#e6edf3;background:#1e293b}
-    .btn:hover{background:#334155}
-    .btn:disabled{opacity:.45;cursor:not-allowed}
-    .btn-primary{width:100%;margin-top:4px;background:linear-gradient(135deg,#2563eb,#7c3aed)}
-    .btn-primary:hover{background:linear-gradient(135deg,#1d4ed8,#6d28d9)}
-    .btn-sm{padding:8px 14px;font-size:.8rem}
-    .media-controls{display:flex;justify-content:center;gap:12px;padding:14px 0}
-    .btn-icon{width:48px;height:48px;border-radius:50%;border:none;background:#1e293b;color:#e6edf3;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:20px}
-    .btn-icon:hover{background:#334155}
-    .btn-icon--danger{background:#991b1b}
-    .btn-icon--danger:hover{background:#b91c1c}
-    .btn-icon--muted{background:#92400e;color:#fbbf24}
-    .video-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
-    .video-card{position:relative;border-radius:10px;overflow:hidden;background:#000;border:1px solid #1e293b;aspect-ratio:16/9}
-    .video-card video{width:100%;height:100%;object-fit:cover;display:block}
-    .video-card--local{border-color:#3b82f6}
-    .video-label{position:absolute;bottom:6px;left:8px;font-size:.72rem;font-weight:500;background:rgba(0,0,0,.6);color:#e6edf3;padding:2px 8px;border-radius:4px}
-    .participants{margin-top:12px;background:#111827;border:1px solid #1e293b;border-radius:10px;padding:12px 14px}
-    .participants summary{cursor:pointer;font-size:.85rem;font-weight:600;color:#94a3b8;user-select:none}
+
+    /* ============ 布局 ============ */
+    .container{max-width:1000px;margin:0 auto;padding:28px 20px 48px}
+
+    /* ============ 顶栏 ============ */
+    .header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px}
+    .brand{display:flex;align-items:center;gap:13px;min-width:0}
+    .brand-mark{
+      width:46px;height:46px;flex:none;border-radius:15px;background:var(--brand-grad);
+      color:#fff;font-size:22px;display:flex;align-items:center;justify-content:center;
+      box-shadow:0 10px 24px -10px rgba(79,70,229,.6);
+    }
+    .brand-text{min-width:0}
+    .brand-text h1{font-size:1.4rem;font-weight:700;letter-spacing:.01em;line-height:1.25;white-space:nowrap}
+    .brand-text .sub{font-size:.74rem;color:var(--ink-3);font-weight:500;letter-spacing:.16em;text-transform:uppercase;white-space:nowrap}
+    .badge{
+      flex:none;font-size:.74rem;font-weight:600;letter-spacing:.05em;padding:6px 14px;
+      border-radius:999px;display:inline-flex;align-items:center;gap:7px;
+      background:#f1f5f9;color:var(--ink-3);border:1px solid var(--line);
+    }
+    .badge::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+    .badge--online{background:var(--ok-soft);color:#047857;border-color:var(--ok-line)}
+    .badge--warn{background:var(--warn-soft);color:#b45309;border-color:#fde68a}
+
+    /* ============ 卡片（加入面板 / 通话面板） ============ */
+    .panel{
+      background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);
+      box-shadow:var(--shadow-md);
+    }
+    #joinPanel{max-width:460px;margin:26px auto 0;padding:32px 34px 30px;text-align:center;position:relative;overflow:hidden}
+    #joinPanel::before{content:"";position:absolute;inset:0 0 auto 0;height:4px;background:var(--brand-grad)}
+    .panel-title{font-size:1.18rem;font-weight:700;margin-bottom:6px}
+    .panel-desc{font-size:.84rem;color:var(--ink-3);margin-bottom:24px}
+    .form-row{text-align:left;margin-bottom:16px}
+    .form-row label{display:block;font-size:.8rem;font-weight:600;color:var(--ink-2);margin-bottom:7px}
+    .form-row input{
+      width:100%;padding:11px 14px;border-radius:var(--r-sm);border:1.5px solid var(--line-2);
+      background:var(--card-soft);color:var(--ink);font-family:var(--font-cn),var(--font-en);font-size:.94rem;
+      transition:border-color .2s, box-shadow .2s, background .2s;
+    }
+    .form-row input::placeholder{color:#b7c3d6}
+    .form-row input:focus{outline:none;background:#fff;border-color:var(--brand);box-shadow:0 0 0 4px rgba(79,70,229,.14)}
+    .btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 22px;
+      border-radius:var(--r-sm);border:none;font-family:var(--font-cn),var(--font-en);
+      font-size:.9rem;font-weight:600;cursor:pointer;color:var(--ink-2);background:#f1f5f9;
+      transition:all .18s ease;
+    }
+    .btn:hover{background:#e8edf5;color:var(--ink)}
+    .btn:disabled{opacity:.55;cursor:not-allowed;box-shadow:none}
+    .btn-primary{
+      width:100%;margin-top:4px;color:#fff;background:var(--brand-grad);
+      box-shadow:0 14px 28px -12px rgba(79,70,229,.65);
+    }
+    .btn-primary:hover{background:linear-gradient(135deg,#4338ca,#6d28d9);filter:none;color:#fff}
+    .btn-primary:disabled{background:#a5b4fc}
+    .btn-sm{padding:8px 18px;font-size:.82rem;border-radius:9px;width:auto}
+
+    /* ============ 通话面板 ============ */
+    #callPanel{padding:24px}
+    .video-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px}
+    .video-card{
+      position:relative;border-radius:var(--r-md);overflow:hidden;
+      background:linear-gradient(135deg,#eef2ff,#faf5ff);aspect-ratio:16/9;
+      border:1px solid var(--line);box-shadow:var(--shadow-sm);
+    }
+    .video-card video{width:100%;height:100%;object-fit:cover;display:block;background:#0f172a}
+    .video-card--local{box-shadow:0 0 0 2px var(--brand), var(--shadow-md)}
+    .video-label{
+      position:absolute;bottom:10px;left:10px;font-size:.72rem;font-weight:700;color:#fff;
+      background:rgba(15,23,42,.55);padding:3px 12px;border-radius:999px;
+      display:inline-flex;align-items:center;gap:6px;letter-spacing:.03em;
+    }
+    .video-label::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--ok)}
+    .video-placeholder{
+      position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+      gap:6px;color:var(--ink-3);font-size:.78rem;
+    }
+    .video-placeholder .ph-ico{font-size:28px;opacity:.85;line-height:1}
+
+    /* ============ 媒体控制条 ============ */
+    .media-controls{display:flex;justify-content:center;gap:16px;padding:18px 0 4px}
+    .btn-icon{
+      width:52px;height:52px;border-radius:50%;border:1px solid var(--line);cursor:pointer;
+      display:flex;align-items:center;justify-content:center;font-size:20px;background:#fff;color:var(--ink-2);
+      box-shadow:var(--shadow-sm);transition:all .18s ease;
+    }
+    .btn-icon:hover{transform:translateY(-2px);box-shadow:0 10px 22px -10px rgba(15,23,42,.3)}
+    .btn-icon:active{transform:translateY(0)}
+    .btn-icon--danger{background:linear-gradient(135deg,#f87171,#dc2626);color:#fff;border:none;box-shadow:0 12px 24px -10px rgba(220,38,38,.55)}
+    .btn-icon--muted{background:linear-gradient(135deg,#fbbf24,#d97706);color:#fff;border:none;box-shadow:0 12px 24px -10px rgba(217,119,6,.45)}
+
+    /* ============ 参与者 ============ */
+    .participants{
+      margin-top:16px;background:var(--card-soft);border:1px solid var(--line);
+      border-radius:var(--r-md);padding:13px 16px;
+    }
+    .participants summary{
+      cursor:pointer;font-size:.86rem;font-weight:700;color:var(--ink-2);
+      user-select:none;display:flex;align-items:center;gap:8px;list-style:none;
+    }
+    .participants summary::-webkit-details-marker{display:none}
+    .participants summary::before{
+      content:"";display:inline-block;width:0;height:0;
+      border-left:5px solid var(--ink-3);border-top:4px solid transparent;border-bottom:4px solid transparent;
+      transition:transform .18s ease;
+    }
+    .participants[open] summary::before{transform:rotate(90deg)}
+    .count-pill{font-size:.68rem;font-weight:700;color:var(--brand);background:var(--brand-soft);border-radius:999px;padding:2px 10px}
     .participants ul{list-style:none;margin-top:8px}
-    .participants li{padding:5px 0;font-size:.82rem;color:#cbd5e1;display:flex;align-items:center;gap:6px}
-    .participants li::before{content:"";width:6px;height:6px;border-radius:50%;background:#22c55e;flex-shrink:0}
-    .chat{margin-top:12px;background:#111827;border:1px solid #1e293b;border-radius:10px;overflow:hidden}
-    .chat-log{padding:10px 14px;min-height:100px;max-height:200px;overflow-y:auto;font-size:.8rem;line-height:1.6;color:#cbd5e1}
-    .chat-log .msg-time{color:#475569;margin-right:6px}
-    .chat-log .msg-name{font-weight:600;color:#60a5fa}
-    .chat-log .msg-sys{color:#94a3b8;font-style:italic}
-    .chat-input{display:flex;border-top:1px solid #1e293b}
-    .chat-input input{flex:1;padding:10px 14px;border:none;background:transparent;color:#e6edf3;font-size:.85rem}
-    .chat-input input:focus{outline:none}
-    .chat-input .btn{border-radius:0}
-    .status{margin-top:16px;padding:8px 14px;border-radius:8px;font-size:.8rem;border-left:4px solid #2d3848;background:#111827}
-    .status-info{border-left-color:#3b82f6}
-    .status-ok{border-left-color:#22c55e;background:#0f2a1a}
-    .status-warn{border-left-color:#eab308;background:#2a2510}
-    .status-error{border-left-color:#ef4444;background:#2a1010}
-    @media (max-width:600px){
-      .container{padding:12px 10px}
+    .participants li{display:flex;align-items:center;gap:9px;padding:5px 0;font-size:.86rem;color:var(--ink-2)}
+    .participants li::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(16,185,129,.18);flex:none}
+    .me-tag{font-size:.64rem;font-weight:700;color:var(--brand);background:var(--brand-soft);padding:1px 8px;border-radius:999px;letter-spacing:.05em}
+    .role-tag{margin-left:auto;font-size:.64rem;font-weight:600;color:var(--ink-3);background:#fff;border:1px solid var(--line);padding:1px 8px;border-radius:999px;letter-spacing:.04em}
+
+    /* ============ 聊天 ============ */
+    .chat{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden}
+    .chat-head{
+      display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);
+      background:var(--card-soft);font-size:.86rem;font-weight:700;color:var(--ink-2);
+    }
+    .chat-log{padding:14px 16px;min-height:108px;max-height:220px;overflow-y:auto;font-size:.88rem;line-height:1.75}
+    .chat-log .msg{display:flex;align-items:baseline;gap:8px;margin-bottom:4px}
+    .chat-log .msg-time{color:#b7c3d6;font-size:.7rem;flex:none}
+    .chat-log .msg-name{font-weight:700;color:var(--brand);flex:none}
+    .chat-log .msg-text{color:var(--ink-2);word-break:break-word}
+    .chat-log .msg-sys{color:var(--ink-3);font-size:.8rem;font-style:italic;display:flex;align-items:baseline;gap:6px}
+    .chat-log .sys-dot{color:var(--ok);font-style:normal}
+    .chat-input{display:flex;align-items:center;gap:10px;padding:12px;border-top:1px solid var(--line);background:var(--card-soft)}
+    .chat-input input{
+      flex:1;min-width:0;padding:9px 13px;border:1.5px solid var(--line-2);border-radius:10px;
+      background:#fff;color:var(--ink);font-family:var(--font-cn),var(--font-en);font-size:.88rem;
+      transition:border-color .2s, box-shadow .2s;
+    }
+    .chat-input input::placeholder{color:#b7c3d6}
+    .chat-input input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(79,70,229,.12)}
+    .chat-input .btn{border-radius:10px;margin:0;width:auto}
+
+    /* ============ 状态条 ============ */
+    .status{
+      margin-top:18px;padding:11px 16px;border-radius:var(--r-sm);font-size:.84rem;font-weight:500;
+      border-left:4px solid var(--line-2);background:var(--card);box-shadow:var(--shadow-sm);
+      display:flex;align-items:center;gap:9px;
+    }
+    .status::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--line-2);flex:none}
+    .status-info{border-left-color:var(--brand);background:var(--brand-soft)}
+    .status-info::before{background:var(--brand)}
+    .status-ok{border-left-color:var(--ok);background:var(--ok-soft);color:#065f46}
+    .status-ok::before{background:var(--ok)}
+    .status-warn{border-left-color:var(--warn);background:var(--warn-soft);color:#92400e}
+    .status-warn::before{background:var(--warn)}
+    .status-error{border-left-color:var(--err);background:var(--err-soft);color:#991b1b}
+    .status-error::before{background:var(--err)}
+
+    /* ============ 响应式 ============ */
+    @media (max-width:640px){
+      .container{padding:18px 12px 32px}
+      .brand-text h1{font-size:1.1rem}
+      .brand-mark{width:38px;height:38px;font-size:18px}
+      #callPanel{padding:14px}
       .video-grid{grid-template-columns:1fr}
-      .panel{padding:18px 16px}
-      .btn-icon{width:42px;height:42px;font-size:18px}
+      #joinPanel{padding:24px 20px}
+      .btn-icon{width:46px;height:46px;font-size:18px}
     }
   </style>
 </head>
 <body>
   <div class="container">
     <header class="header">
-      <h1>WebRTC Signaling</h1>
+      <div class="brand">
+        <div class="brand-mark">📡</div>
+        <div class="brand-text">
+          <h1>WebRTC Signaling</h1>
+          <div class="sub">Room Demo</div>
+        </div>
+      </div>
       <span class="badge" id="connBadge">离线</span>
     </header>
 
+    <!-- 加入面板 -->
     <section class="panel" id="joinPanel">
+      <div class="panel-title">加入通话房间</div>
+      <div class="panel-desc">填写房间号与昵称，体验信令驱动的实时音视频</div>
       <div class="form-row">
         <label for="room">房间</label>
         <input id="room" placeholder="room-001" autocomplete="off" spellcheck="false" />
@@ -85,7 +250,8 @@
       <button id="start" class="btn btn-primary">加入房间</button>
     </section>
 
-    <section class="panel hidden" id="callPanel" style="max-width:none">
+    <!-- 通话面板 -->
+    <section class="panel hidden" id="callPanel">
       <div class="video-grid" id="videoGrid">
         <div class="video-card video-card--local">
           <video id="local" autoplay playsinline muted></video>
@@ -100,15 +266,16 @@
       </div>
 
       <details class="participants" open>
-        <summary>参与者 (<span id="peerCount">0</span>)</summary>
+        <summary>参与者 <span class="count-pill" id="peerCount">0</span></summary>
         <ul id="peerList"></ul>
       </details>
 
       <div class="chat">
+        <div class="chat-head">💬 房间聊天</div>
         <div class="chat-log" id="chatLog"></div>
         <form class="chat-input" id="chatForm">
           <input id="chatText" placeholder="输入消息..." autocomplete="off" />
-          <button type="submit" class="btn btn-sm">发送</button>
+          <button type="submit" class="btn btn-primary btn-sm">发送</button>
         </form>
       </div>
     </section>
@@ -160,18 +327,30 @@
       els.chatLog.appendChild(div);
       els.chatLog.scrollTop = els.chatLog.scrollHeight;
     }
-    const logSystem = (t) => logChat(`<span class="msg-sys">${t}</span>`);
-    const logMessage = (name, text) => logChat(`<span class="msg-name">${name}:</span> ${text.replace(/</g, "&lt;")}`);
+    const logSystem = (t) => logChat(`<span class="msg-sys"><span class="sys-dot">●</span> ${t}</span>`);
+    const logMessage = (name, text) => logChat(`<span class="msg"><span class="msg-name">${name}:</span><span class="msg-text">${text.replace(/</g, "&lt;")}</span></span>`);
 
     function refreshPeerList() {
       els.peerCount.textContent = peerNames.size + 1;
       els.peerList.innerHTML = "";
       const selfLi = document.createElement("li");
-      selfLi.textContent = `${displayName} (我)`;
+      selfLi.textContent = `${displayName} `;
+      const meTag = document.createElement("span");
+      meTag.className = "me-tag";
+      meTag.textContent = "我";
+      selfLi.appendChild(meTag);
+      const selfRole = document.createElement("span");
+      selfRole.className = "role-tag";
+      selfRole.textContent = "speaker";
+      selfLi.appendChild(selfRole);
       els.peerList.appendChild(selfLi);
       for (const [, name] of peerNames) {
         const li = document.createElement("li");
-        li.textContent = name;
+        li.textContent = `${name} `;
+        const role = document.createElement("span");
+        role.className = "role-tag";
+        role.textContent = "speaker";
+        li.appendChild(role);
         els.peerList.appendChild(li);
       }
     }
@@ -183,6 +362,10 @@
       card = document.createElement("div");
       card.id = cid;
       card.className = "video-card";
+      const ph = document.createElement("div");
+      ph.className = "video-placeholder";
+      ph.innerHTML = `<span class="ph-ico">📷</span><span>等待画面…</span>`;
+      card.appendChild(ph);
       const video = document.createElement("video");
       video.autoplay = true;
       video.playsInline = true;
@@ -200,7 +383,12 @@
       const pc = new RTCPeerConnection({ iceServers });
       pcs.set(peerId, pc);
       if (localStream) localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
-      pc.ontrack = (ev) => { ensureVideoCard(peerId).srcObject = ev.streams[0]; };
+      pc.ontrack = (ev) => {
+        const v = ensureVideoCard(peerId);
+        const ph = document.getElementById(`vc-${peerId}`)?.querySelector(".video-placeholder");
+        if (ph) ph.remove();
+        v.srcObject = ev.streams[0];
+      };
       pc.onicecandidate = (ev) => {
         if (ev.candidate) send({ type: "trickle", to: peerId, payload: { candidate: ev.candidate } });
       };
