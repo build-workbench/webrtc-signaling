@@ -14,3 +14,10 @@ coverage.html
 .env.*
 docker/.env
 /server
+
+# AI tools (local only)
+.commandcode/
+.claude/
+.codex/
+.agents/
+.superpowers/
