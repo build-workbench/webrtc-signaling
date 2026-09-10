@@ -1,4 +1,4 @@
-module github.com/vibe-knight/webrtc-signaling
+module github.com/build-workbench/webrtc-signaling
 
 go 1.22
 

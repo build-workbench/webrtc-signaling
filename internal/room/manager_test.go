@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vibe-knight/webrtc-signaling/internal/observability"
+	"github.com/build-workbench/webrtc-signaling/internal/observability"
 	"go.uber.org/zap"
 )
 

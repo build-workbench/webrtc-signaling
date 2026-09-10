@@ -4,8 +4,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/vibe-knight/webrtc-signaling/internal/observability"
-	"github.com/vibe-knight/webrtc-signaling/internal/room"
+	"github.com/build-workbench/webrtc-signaling/internal/observability"
+	"github.com/build-workbench/webrtc-signaling/internal/room"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )

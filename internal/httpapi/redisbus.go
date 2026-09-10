@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vibe-knight/webrtc-signaling/internal/room"
+	"github.com/build-workbench/webrtc-signaling/internal/room"
 	redis "github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )

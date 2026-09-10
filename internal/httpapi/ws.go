@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vibe-knight/webrtc-signaling/internal/room"
+	"github.com/build-workbench/webrtc-signaling/internal/room"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
