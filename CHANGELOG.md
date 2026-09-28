@@ -5,6 +5,9 @@ WebRTC Signaling —— 用 Go 实现的 WebRTC 信令后端,聚焦认证、水�
 
 ## [Unreleased]
 
+_(暂无)_
+
+## [v0.1.0] - 2026-09-28
 ### 新增
 
 - WebSocket 信令核心:房间管理(人数上限、空房自动清理)与 SDP / ICE(offer / answer / trickle)消息路由,统一消息信封(`id` / `version` / `roomId` / `from` / `to` / `ts`)。
