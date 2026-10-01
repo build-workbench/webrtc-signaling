@@ -1,3 +1,7 @@
+**English** | [中文](#chinese)
+
+<a id="top"></a>
+
 # WebRTC Signaling
 
 **A production-style WebRTC signaling service** — implemented from scratch in Go, focusing on backend engineering practices such as authentication, horizontal scaling, observability, and deployment. A personal practice project that, together with its sister project [webrtc-call](https://github.com/build-workbench/webrtc-call), forms a contrasting learning path of "frontend call client vs. backend signaling service".
@@ -153,6 +157,7 @@ Message envelope (`id`/`ts`/`from` are filled in by the server):
 
 ---
 <a id="chinese"></a>
+[English](#top) | **中文**
 
 # WebRTC Signaling
 
