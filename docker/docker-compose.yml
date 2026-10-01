@@ -12,6 +12,12 @@ services:
       SIGNAL_JWT_SECRET: ${SIGNAL_JWT_SECRET:?set SIGNAL_JWT_SECRET before starting}
       SIGNAL_REDIS_ADDR: redis:6379
       SIGNAL_LOG_LEVEL: ${SIGNAL_LOG_LEVEL:-info}
+      # 管理密钥：设置后 /rooms/{id}/join-token 需要 X-Admin-Key 头
+      SIGNAL_ADMIN_KEY: ${SIGNAL_ADMIN_KEY:-}
+      # Origin 白名单（逗号分隔）；为空表示不启用来源过滤
+      SIGNAL_ALLOWED_ORIGINS: ${SIGNAL_ALLOWED_ORIGINS:-}
+      # STUN 服务器列表（逗号分隔）；留空会禁用默认 STUN，如需 TURN 中继请自建 coturn 后在此追加
+      SIGNAL_STUN: ${SIGNAL_STUN:-stun:stun.l.google.com:19302}
     ports:
       - "${SIGNAL_PORT:-8080}:8080"
     depends_on:
