@@ -93,6 +93,56 @@ export SIGNAL_JWT_SECRET="change-me-to-a-long-random-secret"
 cd docker && docker compose up --build
 ```
 
+## Self-Hosting Guide
+
+The production-style deployment path is Docker Compose (single node works fine; Redis is included and enables multi-node scaling later):
+
+```bash
+cd docker
+SIGNAL_JWT_SECRET="$(openssl rand -hex 32)" \
+SIGNAL_ADMIN_KEY="$(openssl rand -hex 16)" \
+docker compose up -d --build
+```
+
+The service listens on `${SIGNAL_PORT:-8080}` with `/healthz`, `/readyz` and Prometheus `/metrics` wired to the container healthcheck.
+
+Minimal production checklist:
+
+- **HTTPS in front**: browsers require a secure context for `getUserMedia`, so terminate TLS at a reverse proxy that forwards WebSocket upgrades:
+
+  ```caddy
+  rtc.example.com {
+      reverse_proxy 127.0.0.1:8080
+  }
+  ```
+
+  ```nginx
+  # nginx: remember the upgrade headers and a long read timeout
+  location / {
+      proxy_pass http://127.0.0.1:8080;
+      proxy_http_version 1.1;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+      proxy_read_timeout 86400s;
+  }
+  ```
+
+- **Lock down origins and the admin API**: set `SIGNAL_ALLOWED_ORIGINS` to your frontend origin(s), and never expose the admin key publicly — `X-Admin-Key` authorizes Join Token issuance (see the API reference below):
+
+  ```bash
+  curl -X POST https://rtc.example.com/api/v1/rooms \
+       -H "Content-Type: application/json" \
+       -d '{"id":"standup","maxParticipants":8}'
+  curl -X POST https://rtc.example.com/api/v1/rooms/standup/join-token \
+       -H "X-Admin-Key: $SIGNAL_ADMIN_KEY" \
+       -H "Content-Type: application/json" \
+       -d '{"userId":"alice","displayName":"Alice","role":"speaker","ttlSeconds":3600}'
+  ```
+
+- **Know the boundaries** (honest disclosure, see also [Project Positioning](#project-positioning-and-target-scenarios)): signaling only — media is P2P and never transits the server; **no TURN**, so strict-NAT peers may fail to connect (self-host a coturn and add it via `SIGNAL_STUN`/`/ice-servers` if you need relaying); **no user system** — Join Tokens are issued manually; the cluster path is exercised by tests but has not been load-tested at scale.
+
+Pair this backend with the [webrtc-call](https://github.com/build-workbench/webrtc-call) frontend client, or point your own RTC frontend at the WebSocket signaling protocol documented below.
+
 ## Configuration
 
 | Variable | Default | Description |
@@ -249,6 +299,56 @@ make run
 export SIGNAL_JWT_SECRET="change-me-to-a-long-random-secret"
 cd docker && docker compose up --build
 ```
+
+## 自部署指南
+
+推荐的生产级部署路径是 Docker Compose（单节点即可运行；Redis 已包含在编排内，之后可以平滑扩展到多节点）：
+
+```bash
+cd docker
+SIGNAL_JWT_SECRET="$(openssl rand -hex 32)" \
+SIGNAL_ADMIN_KEY="$(openssl rand -hex 16)" \
+docker compose up -d --build
+```
+
+服务监听 `${SIGNAL_PORT:-8080}`，`/healthz`、`/readyz` 与 Prometheus `/metrics` 已接入容器健康检查。
+
+最小生产清单：
+
+- **前面加 HTTPS**：浏览器要求安全上下文才能调用 `getUserMedia`，请在反向代理上终结 TLS 并转发 WebSocket 升级：
+
+  ```caddy
+  rtc.example.com {
+      reverse_proxy 127.0.0.1:8080
+  }
+  ```
+
+  ```nginx
+  # nginx：记得带升级请求头，并拉长读超时
+  location / {
+      proxy_pass http://127.0.0.1:8080;
+      proxy_http_version 1.1;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+      proxy_read_timeout 86400s;
+  }
+  ```
+
+- **收紧来源与管理 API**：把 `SIGNAL_ALLOWED_ORIGINS` 设为你的前端来源；管理密钥不要对外暴露——`X-Admin-Key` 用于签发 Join Token（见下方 API 参考）：
+
+  ```bash
+  curl -X POST https://rtc.example.com/api/v1/rooms \
+       -H "Content-Type: application/json" \
+       -d '{"id":"standup","maxParticipants":8}'
+  curl -X POST https://rtc.example.com/api/v1/rooms/standup/join-token \
+       -H "X-Admin-Key: $SIGNAL_ADMIN_KEY" \
+       -H "Content-Type: application/json" \
+       -d '{"userId":"alice","displayName":"Alice","role":"speaker","ttlSeconds":3600}'
+  ```
+
+- **了解边界**（如实声明，另见[项目定位](#项目定位与场景目标)）：本服务只做信令——媒体流 P2P 直连、不经过服务器；**无 TURN**，严格 NAT 环境可能连不通（如需中继，自建 coturn 并通过 `SIGNAL_STUN`/`/ice-servers` 下发）；**无用户系统**，Join Token 靠管理 API 手工签发；集群路径有测试覆盖，但未做过大规模压测。
+
+将此后端与 [webrtc-call](https://github.com/build-workbench/webrtc-call) 前端呼叫客户端配对使用，或按下方文档的 WebSocket 信令协议接入你自己的 RTC 前端。
 
 ## 配置
 
