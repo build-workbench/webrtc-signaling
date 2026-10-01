@@ -1,5 +1,161 @@
 # WebRTC Signaling
 
+**A production-style WebRTC signaling service** — implemented from scratch in Go, focusing on backend engineering practices such as authentication, horizontal scaling, observability, and deployment. A personal practice project that, together with its sister project [webrtc-call](https://github.com/build-workbench/webrtc-call), forms a contrasting learning path of "frontend call client vs. backend signaling service".
+
+[![Go](https://img.shields.io/badge/Go-1.22-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![CI](https://github.com/build-workbench/webrtc-signaling/actions/workflows/ci.yml/badge.svg)](https://github.com/build-workbench/webrtc-signaling/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+## Product Screenshots
+
+Demo UI in light mode (`web/index.html` demo frontend). Both peers, Alice / Bob, join the same room; the screenshot shows video feeds, the participant list, and room chat. The UI fonts are Resource Han Rounded CN (Chinese) and Code New Roman (English/numbers):
+
+![WebRTC Signaling demo — both peers joining a room, participant list, and text messages](docs/screenshot-demo-browser.png)
+
+## Project Positioning and Target Scenarios
+
+WebRTC media streams connect P2P directly between browsers, but "who is in which room, how peers discover each other, and how SDP / ICE candidates are exchanged" requires a signaling channel. **This repository is that signaling backend**, deliberately written to production engineering standards:
+
+- **Typical scenarios**: online classrooms / live-stream interaction (speakers present, viewers only watch, moderators manage), small-scale meetings and collaboration tools, and the backend of any RTC application that needs "rooms + role permissions + message routing"
+- **Learning / portfolio positioning**: every feature is hand-written and comes with tests, serving as a reference starting point for WebRTC signaling and Go backend engineering practice, rather than an out-of-the-box cloud product
+- **Boundaries (honest disclosure)**:
+  - Signaling only; media streams never pass through the server (P2P); STUN is built in, **no TURN** — connections may fail in strict NAT environments
+  - No user system: Join Tokens are issued manually via the admin API (`X-Admin-Key`); no third-party IdP is integrated
+  - `web/` is a single-file demo frontend, not a production UI
+  - No large-scale load testing or real cluster verification has been done; this is a practice project
+
+### Sister Projects
+
+| Project | Positioning |
+|------|------|
+| [webrtc-call](https://github.com/build-workbench/webrtc-call) | **Frontend call client**: native browser WebRTC audio/video calls (1v1 / Mesh multi-party); experience the full P2P call flow first |
+| **webrtc-signaling (this repo)** | **Engineering implementation**: adds authentication, horizontal scaling, observability, deployment, and testing on top of signaling |
+
+## Features
+
+### Signaling Core
+- **WebSocket signaling** -- room management (capacity limit, automatic cleanup of empty rooms), SDP/ICE message routing (offer / answer / trickle), unified message envelope (`id` / `version` / `roomId` / `from` / `to` / `ts`)
+- **Role permissions** -- viewer / speaker / moderator three-tier roles: viewers cannot send media signaling, only moderators can mute others, and the join payload cannot escalate privileges (the role in the JWT is authoritative)
+
+### Engineering Practices
+- **JWT authentication** -- Join Token issuing and verification (HS256), constant-time comparison of the admin key, Token TTL tightening
+- **Redis Pub/Sub horizontal scaling** -- local-first routing with automatic cross-node fallback; per-room subscription + reference counting + nodeID filtering of self messages
+- **Prometheus metrics** -- `signal_*` namespace: connections / rooms / participants / message send-receive / errors / processing latency
+- **Structured logging** -- zap JSON logs, Request-ID tracing
+- **Middleware** -- panic recovery, per-connection rate limiting, CORS Origin whitelist, security response headers, access logging
+- **Testing and CI** -- covers core paths such as permissions, concurrency, and Origin restrictions; CI runs `go build` + `go vet` + `go test -race`
+
+### Deployment and Operations
+- **Docker deployment** -- multi-stage build + Distroless non-root image, one-command docker-compose orchestration (server + redis + health checks)
+- **Operations capabilities** -- graceful shutdown (actively closes existing WebSocket connections), `/healthz` liveness probe, `/readyz` readiness probe (checks Redis), in-container `healthcheck` subcommand
+
+## Architecture
+
+```
+cmd/server/main.go              应用入口
+internal/
+├── auth/                       JWT 签发与验证
+├── config/                     环境变量配置
+├── httpapi/
+│   ├── server.go               HTTP/WS 服务器组装
+│   ├── router.go               消息路由（本地优先 + Redis Bus 跨节点 fallback）
+│   ├── ws.go                   WebSocket 会话管理
+│   ├── handler_room.go         REST API：房间 CRUD / Join Token 签发
+│   ├── handler_health.go       健康探针与 ICE 服务器配置
+│   ├── middleware.go           中间件链
+│   ├── permission.go           角色权限策略
+│   ├── redisbus.go             Redis Pub/Sub 实现
+│   └── utils.go                工具函数
+├── observability/metrics.go    Prometheus 指标
+└── room/manager.go             房间与 Peer 生命周期管理
+web/index.html                  单文件 Demo 前端
+```
+
+## Quick Start
+
+### Single Instance
+
+```bash
+export SIGNAL_JWT_SECRET="change-me-to-a-long-random-secret"
+make run
+```
+
+Open `http://localhost:8080/demo`, enter a room and a nickname, and try it out.
+
+### Multiple Instances (Redis Scaling)
+
+```bash
+export SIGNAL_JWT_SECRET="change-me-to-a-long-random-secret"
+cd docker && docker compose up --build
+```
+
+## Configuration
+
+| Variable | Default | Description |
+|------|--------|------|
+| `SIGNAL_JWT_SECRET` | - | JWT signing secret (**required**) |
+| `SIGNAL_ADDR` | `:8080` | Listen address |
+| `SIGNAL_LOG_LEVEL` | `info` | Log level |
+| `SIGNAL_ADMIN_KEY` | - | Admin API key (for issuing Join Tokens, optional) |
+| `SIGNAL_ALLOWED_ORIGINS` | - | Origin whitelist (comma-separated) |
+| `SIGNAL_REDIS_ADDR` | - | Redis address; when non-empty, multi-node scaling is enabled |
+| `SIGNAL_STUN` | `stun:stun.l.google.com:19302` | STUN server list |
+
+## API Reference
+
+### REST Endpoints
+
+Base URL: `/api/v1`
+
+| Method | Path | Description |
+|------|------|------|
+| POST | `/rooms` | Create a room |
+| GET | `/rooms/{id}` | Query a room |
+| POST | `/rooms/{id}/join-token` | Issue a Join Token (requires `X-Admin-Key`) |
+| GET | `/ice-servers` | ICE server configuration |
+| GET | `/healthz` | Liveness probe |
+| GET | `/readyz` | Readiness probe (checks Redis) |
+| GET | `/metrics` | Prometheus metrics |
+
+### WebSocket Signaling
+
+Connect: `GET /ws/v1?token=<JWT>`; after connecting, a `join` message must be sent first.
+
+Message envelope (`id`/`ts`/`from` are filled in by the server):
+
+```json
+{ "id": "uuid", "version": "v1", "type": "offer", "to": "peer-b", "from": "peer-a", "ts": 1707800000000, "payload": {} }
+```
+
+| Client -> Server | Description |
+|---|---|
+| `join` | Join a room |
+| `offer` / `answer` | SDP negotiation |
+| `trickle` | ICE candidates |
+| `chat` | Text message |
+| `mute` / `unmute` | Mute control (moderators can manage others) |
+| `leave` | Leave the room |
+
+| Error code | Meaning |
+|---|---|
+| 2001 | Invalid message format |
+| 2002 | Unauthenticated or Token expired |
+| 2003 | Insufficient permissions |
+| 2004 | Room does not exist |
+| 2006 | Unsupported message type |
+| 2007 | Rate limit exceeded |
+| 2010 | Abnormal state or room is full |
+| 3000 | Internal server error |
+
+## License
+
+[MIT](LICENSE)
+
+---
+<a id="chinese"></a>
+
+# WebRTC Signaling
+
 **生产风格（production-style）的 WebRTC 信令服务** —— 用 Go 从零实现，聚焦认证、水平扩展、可观测性与部署等后端工程实践。个人练手作品，与姊妹项目 [webrtc-call](https://github.com/build-workbench/webrtc-call) 形成「前端通话客户端 vs 后端信令服务」的对照学习路径。
 
 [![Go](https://img.shields.io/badge/Go-1.22-00ADD8?logo=go&logoColor=white)](https://go.dev/)
