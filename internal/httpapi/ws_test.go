@@ -16,12 +16,16 @@ import (
 	"go.uber.org/zap"
 )
 
+// testAdminKey is the admin key used by testServer. Token issuance now requires
+// an admin key (fail-closed), so the shared test server configures one.
+const testAdminKey = "test-admin-key"
+
 func testServer(t *testing.T) (*Server, *httptest.Server) {
 	t.Helper()
 	cfg := &config.Config{
 		LogLevel: "error",
 		Server:   config.ServerCfg{Addr: ":0"},
-		Security: config.SecurityCfg{JWTSecret: "test-secret-for-integration"},
+		Security: config.SecurityCfg{JWTSecret: "test-secret-for-integration", AdminKey: testAdminKey},
 		STUN:     []string{"stun:stun.l.google.com:19302"},
 	}
 	log, _ := zap.NewDevelopment()
@@ -54,11 +58,26 @@ func getToken(t *testing.T, ts *httptest.Server, roomID, userID, name string) st
 	return getTokenWithRole(t, ts, roomID, userID, name, "speaker", nil)
 }
 
+// copyHeaderWith returns a copy of headers with key=value set (non-destructive).
+func copyHeaderWith(headers map[string]string, key, value string) map[string]string {
+	out := make(map[string]string, len(headers)+1)
+	for k, v := range headers {
+		out[k] = v
+	}
+	out[key] = value
+	return out
+}
+
 func getTokenWithRole(t *testing.T, ts *httptest.Server, roomID, userID, name, role string, headers map[string]string) string {
 	t.Helper()
 	body := `{"userId":"` + userID + `","displayName":"` + name + `","role":"` + role + `","ttlSeconds":60}`
 	req, _ := http.NewRequest("POST", ts.URL+"/api/v1/rooms/"+roomID+"/join-token", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	// Default to the shared test server's admin key so most tests don't need to
+	// pass one; explicit headers (e.g. wrong-key cases) override it.
+	if _, ok := headers["X-Admin-Key"]; !ok {
+		headers = copyHeaderWith(headers, "X-Admin-Key", testAdminKey)
+	}
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
@@ -337,7 +356,7 @@ func TestWebSocketOriginRestricted(t *testing.T) {
 	cfg := &config.Config{
 		LogLevel: "error",
 		Server:   config.ServerCfg{Addr: ":0", AllowedOrigins: []string{"https://allowed.example"}},
-		Security: config.SecurityCfg{JWTSecret: "test-secret-for-integration"},
+		Security: config.SecurityCfg{JWTSecret: "test-secret-for-integration", AdminKey: testAdminKey},
 		STUN:     []string{"stun:stun.l.google.com:19302"},
 	}
 	log, _ := zap.NewDevelopment()
@@ -488,6 +507,21 @@ func TestCreateRoomRejectsNegativeMaxParticipants(t *testing.T) {
 // ---------------------------------------------------------------------------
 // Phase 4: new tests
 // ---------------------------------------------------------------------------
+
+func TestTokenIssuanceDisabledWithoutAdminKey(t *testing.T) {
+	_, ts := testServerWithAdmin(t, "")
+	defer ts.Close()
+
+	body := `{"userId":"u1","displayName":"A","role":"speaker","ttlSeconds":60}`
+	resp, err := http.Post(ts.URL+"/api/v1/rooms/r1/join-token", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 when admin key unset, got %d", resp.StatusCode)
+	}
+}
 
 func TestAdminKeyAuth(t *testing.T) {
 	_, ts := testServerWithAdmin(t, "my-secret-admin-key")

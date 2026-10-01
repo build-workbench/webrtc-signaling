@@ -5,7 +5,9 @@ WebRTC Signaling —— 用 Go 实现的 WebRTC 信令后端,聚焦认证、水�
 
 ## [Unreleased]
 
-_(暂无)_
+### 修复
+
+- 安全：未配置 `SIGNAL_ADMIN_KEY` 时禁用 join-token 签发端点（返回 503），避免默认部署下任何人自签任意房间/任意角色的令牌。
 
 ## [v0.1.0] - 2026-09-28
 ### 新增

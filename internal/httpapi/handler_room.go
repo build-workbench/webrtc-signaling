@@ -42,13 +42,17 @@ func (s *Server) handleGetRoom(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleJoinToken(w http.ResponseWriter, r *http.Request) {
+	// AdminKey 是签发 join-token 的唯一门槛：未配置时拒绝签发，避免默认部署
+	// 下任何人自签任意房间/任意角色的令牌（fail-closed）。
+	if s.cfg.Security.AdminKey == "" {
+		writeErrorWithMetrics(w, http.StatusServiceUnavailable, 2002, "admin_key_not_configured", "SIGNAL_ADMIN_KEY is not set; token issuance disabled", s.metrics)
+		return
+	}
 	// constant-time admin key check to prevent timing attacks
-	if s.cfg.Security.AdminKey != "" {
-		provided := r.Header.Get("X-Admin-Key")
-		if subtle.ConstantTimeCompare([]byte(provided), []byte(s.cfg.Security.AdminKey)) != 1 {
-			writeErrorWithMetrics(w, http.StatusUnauthorized, 2002, "unauthorized", nil, s.metrics)
-			return
-		}
+	provided := r.Header.Get("X-Admin-Key")
+	if subtle.ConstantTimeCompare([]byte(provided), []byte(s.cfg.Security.AdminKey)) != 1 {
+		writeErrorWithMetrics(w, http.StatusUnauthorized, 2002, "unauthorized", nil, s.metrics)
+		return
 	}
 	var req struct {
 		UserID      string `json:"userId"`
